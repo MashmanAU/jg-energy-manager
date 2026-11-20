@@ -1,10 +1,10 @@
 # JG Energy Manager
 
-A Home Assistant custom integration for deadline-aware EV charging and home-battery-aware solar charging. Version **0.1.0** is designed for a single smart Smappee EV charger with a writable **6-32 A** current setpoint and read-only AlphaESS inputs.
+A Home Assistant custom integration for deadline-aware EV charging and home-battery-aware solar charging. Version **0.1.1** is designed for a single smart Smappee EV charger with a writable **6-32 A** current setpoint and read-only AlphaESS inputs.
 
 > **Safety default:** the integration starts in **Observe Only** mode. It calculates and exposes every proposed action, but does not write to the charger until Observe Only is explicitly turned off.
 
-## v0.1.0 scope
+## v0.1.1 scope
 
 - Overnight slow charging paced to a configurable maximum session energy and ready-by time.
 - AlphaESS may support overnight charging down to a configurable battery floor (default 10%). The integration does **not** write to AlphaESS.
@@ -40,15 +40,15 @@ Choose entities by friendly name because the Smappee device serial forms part of
 | Battery power (optional) | AlphaESS battery power sensor; select its sign convention |
 | Grid power | Smappee grid power sensor; select whether positive means import |
 | Solar power | Smappee production/solar power sensor |
-| Charger status | Smappee connector EVCC state sensor (A/B/C) |
-| Charger power | `Home Charger Connector 1 Power` sensor |
-| Charger energy | Cumulative connector imported-energy sensor |
-| Charger enable | Smappee connector charging switch |
-| Charger current | **`Home Charger Connector 1 Charging current`** number (writable setpoint) |
+| Charger status | **EVCC state** - Home Charger \| Connector 1 |
+| Charger power | **Power** - Home Charger \| Connector 1 |
+| Charger energy | **Energy import** - Home Charger \| Connector 1 |
+| Charger enable | **EVCC charging** - Home Charger \| Connector 1 |
+| Charger current | **Charging current limit** - Home Charger \| Connector 1 |
 
-Do **not** select `Home Charger Connector 1 Maximum current` as the writable control. The screenshots and diagnostics show the charging-current entity is the dynamic setpoint, while maximum current is the fixed installation ceiling.
+Do **not** select `Home Charger Connector 1 Maximum current` as the writable control. The charging-current-limit entity is the dynamic setpoint, while maximum current is the fixed installation ceiling.
 
-Default connected status values are `B,C,connected,charging,suspended_ev` and can be edited in the integration options.
+Default connected status values are `B,C` and can be edited in the integration options.
 
 ## First commissioning
 
@@ -75,7 +75,7 @@ The automatic priority is deliberately deterministic:
 5. Overnight window -> pace remaining maximum energy to the ready-by deadline.
 6. Other times -> charge only from stable export headroom while preserving the daytime battery reserve.
 
-See [Control logic](docs/CONTROL_LOGIC.md) for formulas, edge cases and the session model, and [v0.1.0 requirement traceability](docs/REQUIREMENTS.md) for scope coverage.
+See [Control logic](docs/CONTROL_LOGIC.md) for formulas, edge cases and the session model, and [v0.1.1 requirement traceability](docs/REQUIREMENTS.md) for scope coverage.
 
 ## Entities created
 
@@ -112,12 +112,12 @@ From Windows PowerShell:
 powershell.exe -ExecutionPolicy Bypass -File ".\publish.ps1" -RepositoryPath "C:\path\to\jg-energy-manager"
 ```
 
-The script validates versions and JSON, compiles Python, runs tests, scans for likely secrets, builds release ZIPs, commits changes, tags `v0.1.0`, and pushes `main` plus the tag to `https://github.com/MashmanAU/jg-energy-manager.git`. Use `-NoPush` for a local validation/package run.
+The script validates versions and JSON, compiles Python, runs tests, scans for likely secrets, builds release ZIPs, commits changes, tags `v0.1.1`, and pushes `main` plus the tag to `https://github.com/MashmanAU/jg-energy-manager.git`. Use `-NoPush` for a local validation/package run.
 
 ## Important limitations
 
 - **No AlphaESS write control:** battery SOC and optional battery power are read-only inputs.
 - **No vehicle SOC:** the session target is an upper bound, not a known vehicle requirement.
-- **Second charger:** configuration only; no automatic actuation in v0.1.0.
+- **Second charger:** configuration only; no automatic actuation in v0.1.1.
 - **Single controller instance per charger:** do not run EVCC or another automation against the same Smappee enable/current entities at the same time.
 - This software controls charging equipment through Home Assistant. Commission in Observe Only mode and confirm electrical limits against the charger installation.

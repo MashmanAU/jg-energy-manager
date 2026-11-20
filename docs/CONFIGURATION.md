@@ -5,7 +5,7 @@ All values are editable in Home Assistant under the integration's **Configure** 
 ## Energy inputs
 
 - Battery SOC entity (required)
-- Battery power entity and sign convention (optional; diagnostic in v0.1.0)
+- Battery power entity and sign convention (optional; diagnostic in v0.1.1)
 - Grid power entity and sign convention (required)
 - Solar power entity (required)
 
@@ -16,7 +16,9 @@ All values are editable in Home Assistant under the integration's **Configure** 
 - Cumulative energy sensor in kWh (required)
 - Enable switch or input boolean (required)
 - Writable current number or input number in A (required)
-- Comma-separated connected states (default `B,C,connected,charging,suspended_ev`)
+- Comma-separated connected states (default `B,C`)
+
+The charger entity pickers are intentionally not filtered by Home Assistant domain. This avoids rejecting compatible third-party charger entities in the configuration form. Select these Smappee Connector 1 entities: **EVCC state**, **Power**, **Energy import**, **EVCC charging**, and **Charging current limit**.
 
 ## Schedule and protection defaults
 
@@ -58,4 +60,4 @@ All values are editable in Home Assistant under the integration's **Configure** 
 
 ## Second charger
 
-The name, on/off switch, status and power sensor are configurable now so the data model does not need to be migrated later. The v0.1.0 diagnostic state is `reserved_for_future_logic`; no automatic command is issued to this switch.
+The name, on/off switch, status and power sensor are configurable now so the data model does not need to be migrated later. The v0.1.1 diagnostic state is `reserved_for_future_logic`; no automatic command is issued to this switch.

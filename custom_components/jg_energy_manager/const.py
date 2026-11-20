@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "jg_energy_manager"
 NAME: Final = "JG Energy Manager"
-VERSION: Final = "0.1.0"
+VERSION: Final = "0.1.1"
 PLATFORMS: Final = ["binary_sensor", "button", "select", "sensor", "switch"]
 
 CONF_NAME: Final = "name"
@@ -69,7 +69,7 @@ OVERRIDE_OPTIONS: Final = [OVERRIDE_AUTOMATIC, OVERRIDE_FORCE_OFF, OVERRIDE_FORC
 
 DEFAULTS: Final = {
     CONF_NAME: NAME,
-    CONF_CONNECTED_STATES: "B,C,connected,charging,suspended_ev",
+    CONF_CONNECTED_STATES: "B,C",
     CONF_CHARGING_STATES: "C,charging",
     CONF_GRID_POWER_SIGN: GRID_POSITIVE_IMPORT,
     CONF_BATTERY_POWER_SIGN: BATTERY_POSITIVE_DISCHARGE,

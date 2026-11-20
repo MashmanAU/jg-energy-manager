@@ -13,7 +13,12 @@ from .const import *  # noqa: F403
 
 
 def _entity(domain: str | list[str] | None = None) -> selector.EntitySelector:
-    return selector.EntitySelector(selector.EntitySelectorConfig(domain=domain))
+    config = (
+        selector.EntitySelectorConfig()
+        if domain is None
+        else selector.EntitySelectorConfig(domain=domain)
+    )
+    return selector.EntitySelector(config)
 
 
 def _time() -> selector.TimeSelector:
@@ -29,6 +34,22 @@ def _peak_months(value: Any) -> str:
     if not months or any(month < 1 or month > 12 for month in months):
         raise vol.Invalid("Use comma-separated month numbers from 1 to 12")
     return ",".join(str(month) for month in sorted(months))
+
+
+def _connected_states(value: Any) -> str:
+    """Normalise a text value, or a selector list, to comma-separated states."""
+    values = value if isinstance(value, (list, tuple, set)) else cv.string(value).split(",")
+    states: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        state = cv.string(item).strip()
+        folded = state.casefold()
+        if state and folded not in seen:
+            states.append(state)
+            seen.add(folded)
+    if not states:
+        raise vol.Invalid("Enter at least one connected state")
+    return ",".join(states)
 
 
 def _number(minimum: float, maximum: float, step: float, unit: str | None = None):
@@ -76,18 +97,20 @@ def _energy_schema(defaults: dict[str, Any]) -> vol.Schema:
 def _charger_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required(CONF_CHARGER_STATUS_ENTITY): _entity("sensor"),  # noqa: F405
-            vol.Required(CONF_CHARGER_POWER_ENTITY): _entity("sensor"),  # noqa: F405
-            vol.Required(CONF_CHARGER_ENERGY_ENTITY): _entity("sensor"),  # noqa: F405
-            vol.Required(CONF_CHARGER_ENABLE_ENTITY): _entity(  # noqa: F405
-                ["switch", "input_boolean"]
-            ),
-            vol.Required(CONF_CHARGER_CURRENT_ENTITY): _entity(  # noqa: F405
-                ["number", "input_number"]
-            ),
+            # Some third-party charger integrations expose otherwise compatible
+            # controls through non-standard entity platforms.  Restricting the
+            # entity selector by domain makes Home Assistant 2026.11 reject those
+            # selections in the browser before this flow receives the values.
+            # Keep these pickers intentionally unfiltered and validate behaviour
+            # at runtime from the selected entities' states and services.
+            vol.Required(CONF_CHARGER_STATUS_ENTITY): _entity(),  # noqa: F405
+            vol.Required(CONF_CHARGER_POWER_ENTITY): _entity(),  # noqa: F405
+            vol.Required(CONF_CHARGER_ENERGY_ENTITY): _entity(),  # noqa: F405
+            vol.Required(CONF_CHARGER_ENABLE_ENTITY): _entity(),  # noqa: F405
+            vol.Required(CONF_CHARGER_CURRENT_ENTITY): _entity(),  # noqa: F405
             vol.Required(  # noqa: F405
                 CONF_CONNECTED_STATES, default=defaults[CONF_CONNECTED_STATES]  # noqa: F405
-            ): cv.string,
+            ): _connected_states,
         }
     )
 

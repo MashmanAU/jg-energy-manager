@@ -12,7 +12,7 @@
       },
       "energy": {
         "title": "Energy inputs",
-        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.1.0.",
+        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.1.1.",
         "data": {
           "battery_soc_entity": "Battery state of charge sensor",
           "battery_power_entity": "Battery power sensor (optional)",
@@ -100,7 +100,7 @@
       },
       "secondary": {
         "title": "Future on/off charger",
-        "description": "The second charger is stored and diagnosed in v0.1.0. Automatic control logic is intentionally not enabled yet.",
+        "description": "The second charger is stored and diagnosed in v0.1.1. Automatic control logic is intentionally not enabled yet.",
         "data": {
           "secondary_enabled": "Configure second charger",
           "secondary_name": "Second charger name",
@@ -109,7 +109,7 @@
           "secondary_power_entity": "Second charger power sensor (optional)"
         },
         "data_description": {
-          "secondary_enabled": "v0.1.0 stores and diagnoses this charger but does not control it automatically."
+          "secondary_enabled": "v0.1.1 stores and diagnoses this charger but does not control it automatically."
         }
       }
     },
@@ -229,7 +229,7 @@
           "secondary_power_entity": "Second charger power sensor (optional)"
         },
         "data_description": {
-          "secondary_enabled": "v0.1.0 stores and diagnoses this charger but does not control it automatically."
+          "secondary_enabled": "v0.1.1 stores and diagnoses this charger but does not control it automatically."
         }
       }
     },
