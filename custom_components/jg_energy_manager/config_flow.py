@@ -110,7 +110,7 @@ def _charger_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_CHARGER_CURRENT_ENTITY): _entity(),  # noqa: F405
             vol.Required(  # noqa: F405
                 CONF_CONNECTED_STATES, default=defaults[CONF_CONNECTED_STATES]  # noqa: F405
-            ): _connected_states,
+            ): selector.TextSelector(),
         }
     )
 
@@ -202,6 +202,11 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
         return await self._next("energy", user_input, _energy_schema(self._data), self.async_step_charger)
 
     async def async_step_charger(self, user_input=None) -> ConfigFlowResult:
+        if user_input is not None:
+            user_input = dict(user_input)
+            user_input[CONF_CONNECTED_STATES] = _connected_states(  # noqa: F405
+                user_input[CONF_CONNECTED_STATES]  # noqa: F405
+            )
         return await self._next("charger", user_input, _charger_schema(self._data), self.async_step_schedule)
 
     async def async_step_schedule(self, user_input=None) -> ConfigFlowResult:
@@ -265,6 +270,11 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
         return await self._save_step("energy", user_input, _energy_schema(self.current))
 
     async def async_step_charger(self, user_input=None) -> ConfigFlowResult:
+        if user_input is not None:
+            user_input = dict(user_input)
+            user_input[CONF_CONNECTED_STATES] = _connected_states(  # noqa: F405
+                user_input[CONF_CONNECTED_STATES]  # noqa: F405
+            )
         return await self._save_step("charger", user_input, _charger_schema(self.current))
 
     async def async_step_schedule(self, user_input=None) -> ConfigFlowResult:
