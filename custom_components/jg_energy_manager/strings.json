@@ -1,0 +1,325 @@
+{
+  "title": "JG Energy Manager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Controller",
+        "description": "Start in Observe Only mode, review the diagnostic entities, then explicitly turn Observe Only off when the calculations are correct.",
+        "data": {
+          "name": "Name",
+          "initial_observe_only": "Start in Observe Only mode"
+        }
+      },
+      "energy": {
+        "title": "Energy inputs",
+        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.1.0.",
+        "data": {
+          "battery_soc_entity": "Battery state of charge sensor",
+          "battery_power_entity": "Battery power sensor (optional)",
+          "battery_power_sign": "Battery power sign",
+          "grid_power_entity": "Grid power sensor",
+          "grid_power_sign": "Grid power sign",
+          "solar_power_entity": "Solar production sensor"
+        },
+        "data_description": {
+          "battery_power_entity": "Read-only diagnostic input; no AlphaESS command is sent.",
+          "grid_power_entity": "Choose the sign convention below so positive is normalised to import."
+        }
+      },
+      "charger": {
+        "title": "Smart charger",
+        "description": "Map the Smappee status, power, energy, enable and writable charging-current entities.",
+        "data": {
+          "charger_status_entity": "Charger status sensor",
+          "charger_power_entity": "Charger power sensor",
+          "charger_energy_entity": "Cumulative charger energy sensor",
+          "charger_enable_entity": "Charger enable switch",
+          "charger_current_entity": "Writable charging current number",
+          "connected_states": "States that mean a vehicle is connected"
+        },
+        "data_description": {
+          "charger_current_entity": "Select the Smappee Charging current setpoint, not the fixed Maximum current ceiling.",
+          "charger_energy_entity": "Used to measure energy delivered since plug-in."
+        }
+      },
+      "schedule": {
+        "title": "Schedule and battery protection",
+        "data": {
+          "target_energy_kwh": "Maximum energy per session",
+          "ready_by": "Ready-by time",
+          "overnight_start": "Overnight charging starts",
+          "peak_start": "Peak protection starts",
+          "peak_end": "Peak protection ends",
+          "overnight_battery_floor": "Overnight battery floor",
+          "daytime_battery_reserve": "Daytime battery reserve",
+          "soc_hysteresis": "Battery reserve hysteresis",
+          "peak_months": "Peak-protection months (comma-separated)"
+        },
+        "data_description": {
+          "target_energy_kwh": "Upper bound for the current plug-in session.",
+          "overnight_battery_floor": "The inverter remains responsible for enforcing its own minimum SOC.",
+          "daytime_battery_reserve": "Solar charging waits above this reserve, with hysteresis.",
+          "peak_months": "1-12; default matches the seasonal tariff: Jan-Mar, Jun-Aug and Nov-Dec."
+        }
+      },
+      "limits": {
+        "title": "Electrical and solar limits",
+        "data": {
+          "min_current_a": "Minimum charger current",
+          "max_current_a": "Maximum charger current",
+          "current_step_a": "Current adjustment step",
+          "supply_voltage": "Supply voltage",
+          "phases": "Charging phases",
+          "charging_efficiency": "Charging efficiency",
+          "solar_start_margin_w": "Solar start margin",
+          "solar_run_margin_w": "Solar running margin",
+          "idle_power_w": "Vehicle no-demand power threshold",
+          "max_charger_power_w": "Maximum charger power"
+        },
+        "data_description": {
+          "solar_start_margin_w": "Export headroom retained before starting.",
+          "solar_run_margin_w": "Export headroom retained while running.",
+          "idle_power_w": "Below this power for the timeout, the vehicle is treated as satisfied.",
+          "max_charger_power_w": "Hard power cap applied in addition to the maximum current."
+        }
+      },
+      "control": {
+        "title": "Control safety",
+        "data": {
+          "control_interval_s": "Control interval",
+          "no_demand_timeout_s": "Vehicle no-demand timeout",
+          "command_deadband_a": "Current command deadband",
+          "min_command_interval_s": "Minimum command interval",
+          "stop_when_disabled": "Stop charger when controller is disabled",
+          "fail_safe_stop": "Stop charger when a critical input is invalid",
+          "initial_observe_only": "Default to Observe Only when no runtime state exists"
+        },
+        "data_description": {
+          "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted."
+        }
+      },
+      "secondary": {
+        "title": "Future on/off charger",
+        "description": "The second charger is stored and diagnosed in v0.1.0. Automatic control logic is intentionally not enabled yet.",
+        "data": {
+          "secondary_enabled": "Configure second charger",
+          "secondary_name": "Second charger name",
+          "secondary_switch_entity": "Second charger on/off switch",
+          "secondary_status_entity": "Second charger status sensor (optional)",
+          "secondary_power_entity": "Second charger power sensor (optional)"
+        },
+        "data_description": {
+          "secondary_enabled": "v0.1.0 stores and diagnoses this charger but does not control it automatically."
+        }
+      }
+    },
+    "error": {
+      "secondary_switch_required": "Select an on/off switch when the second charger is enabled."
+    },
+    "abort": {
+      "already_configured": "This controller is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "JG Energy Manager options",
+        "menu_options": {
+          "energy": "Energy inputs",
+          "charger": "Smart charger",
+          "schedule": "Schedule and battery protection",
+          "limits": "Electrical and solar limits",
+          "control": "Control safety",
+          "secondary": "Future on/off charger"
+        }
+      },
+      "energy": {
+        "title": "Energy inputs",
+        "data": {
+          "battery_soc_entity": "Battery state of charge sensor",
+          "battery_power_entity": "Battery power sensor (optional)",
+          "battery_power_sign": "Battery power sign",
+          "grid_power_entity": "Grid power sensor",
+          "grid_power_sign": "Grid power sign",
+          "solar_power_entity": "Solar production sensor"
+        },
+        "data_description": {
+          "battery_power_entity": "Read-only diagnostic input; no AlphaESS command is sent.",
+          "grid_power_entity": "Choose the sign convention below so positive is normalised to import."
+        }
+      },
+      "charger": {
+        "title": "Smart charger",
+        "data": {
+          "charger_status_entity": "Charger status sensor",
+          "charger_power_entity": "Charger power sensor",
+          "charger_energy_entity": "Cumulative charger energy sensor",
+          "charger_enable_entity": "Charger enable switch",
+          "charger_current_entity": "Writable charging current number",
+          "connected_states": "States that mean a vehicle is connected"
+        },
+        "data_description": {
+          "charger_current_entity": "Select the Smappee Charging current setpoint, not the fixed Maximum current ceiling.",
+          "charger_energy_entity": "Used to measure energy delivered since plug-in."
+        }
+      },
+      "schedule": {
+        "title": "Schedule and battery protection",
+        "data": {
+          "target_energy_kwh": "Maximum energy per session",
+          "ready_by": "Ready-by time",
+          "overnight_start": "Overnight charging starts",
+          "peak_start": "Peak protection starts",
+          "peak_end": "Peak protection ends",
+          "overnight_battery_floor": "Overnight battery floor",
+          "daytime_battery_reserve": "Daytime battery reserve",
+          "soc_hysteresis": "Battery reserve hysteresis",
+          "peak_months": "Peak-protection months (comma-separated)"
+        },
+        "data_description": {
+          "target_energy_kwh": "Upper bound for the current plug-in session.",
+          "overnight_battery_floor": "The inverter remains responsible for enforcing its own minimum SOC.",
+          "daytime_battery_reserve": "Solar charging waits above this reserve, with hysteresis.",
+          "peak_months": "1-12; default matches the seasonal tariff: Jan-Mar, Jun-Aug and Nov-Dec."
+        }
+      },
+      "limits": {
+        "title": "Electrical and solar limits",
+        "data": {
+          "min_current_a": "Minimum charger current",
+          "max_current_a": "Maximum charger current",
+          "current_step_a": "Current adjustment step",
+          "supply_voltage": "Supply voltage",
+          "phases": "Charging phases",
+          "charging_efficiency": "Charging efficiency",
+          "solar_start_margin_w": "Solar start margin",
+          "solar_run_margin_w": "Solar running margin",
+          "idle_power_w": "Vehicle no-demand power threshold",
+          "max_charger_power_w": "Maximum charger power"
+        },
+        "data_description": {
+          "solar_start_margin_w": "Export headroom retained before starting.",
+          "solar_run_margin_w": "Export headroom retained while running.",
+          "idle_power_w": "Below this power for the timeout, the vehicle is treated as satisfied.",
+          "max_charger_power_w": "Hard power cap applied in addition to the maximum current."
+        }
+      },
+      "control": {
+        "title": "Control safety",
+        "data": {
+          "control_interval_s": "Control interval",
+          "no_demand_timeout_s": "Vehicle no-demand timeout",
+          "command_deadband_a": "Current command deadband",
+          "min_command_interval_s": "Minimum command interval",
+          "stop_when_disabled": "Stop charger when controller is disabled",
+          "fail_safe_stop": "Stop charger when a critical input is invalid",
+          "initial_observe_only": "Default to Observe Only when no runtime state exists"
+        },
+        "data_description": {
+          "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted."
+        }
+      },
+      "secondary": {
+        "title": "Future on/off charger",
+        "data": {
+          "secondary_enabled": "Configure second charger",
+          "secondary_name": "Second charger name",
+          "secondary_switch_entity": "Second charger on/off switch",
+          "secondary_status_entity": "Second charger status sensor (optional)",
+          "secondary_power_entity": "Second charger power sensor (optional)"
+        },
+        "data_description": {
+          "secondary_enabled": "v0.1.0 stores and diagnoses this charger but does not control it automatically."
+        }
+      }
+    },
+    "error": {
+      "secondary_switch_required": "Select an on/off switch when the second charger is enabled."
+    }
+  },
+  "selector": {
+    "grid_power_sign": {
+      "options": {
+        "positive_import": "Positive means import",
+        "negative_import": "Negative means import"
+      }
+    },
+    "battery_power_sign": {
+      "options": {
+        "positive_discharge": "Positive means discharge",
+        "positive_charge": "Positive means charge"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "controller_state": {
+        "name": "Controller state"
+      },
+      "controller_reason": {
+        "name": "Controller reason"
+      },
+      "requested_current": {
+        "name": "Calculated current"
+      },
+      "requested_power": {
+        "name": "Calculated power"
+      },
+      "required_average_power": {
+        "name": "Required average power"
+      },
+      "available_solar_power": {
+        "name": "Available solar power"
+      },
+      "session_energy": {
+        "name": "Energy delivered this session"
+      },
+      "energy_remaining": {
+        "name": "Maximum energy remaining"
+      },
+      "projected_completion": {
+        "name": "Projected completion"
+      },
+      "deadline": {
+        "name": "Current deadline"
+      },
+      "secondary_charger_state": {
+        "name": "Second charger state"
+      }
+    },
+    "binary_sensor": {
+      "charger_connected": {
+        "name": "Vehicle connected"
+      },
+      "live_control": {
+        "name": "Live control active"
+      },
+      "input_health": {
+        "name": "Input problem"
+      }
+    },
+    "switch": {
+      "controller_enabled": {
+        "name": "Controller enabled"
+      },
+      "observe_only": {
+        "name": "Observe Only"
+      }
+    },
+    "select": {
+      "override": {
+        "name": "Override",
+        "state": {
+          "automatic": "Automatic",
+          "force_off": "Force off",
+          "force_max": "Force maximum"
+        }
+      }
+    },
+    "button": {
+      "reset_session": {
+        "name": "Reset charging session"
+      }
+    }
+  }
+}

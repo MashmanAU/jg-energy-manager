@@ -1,0 +1,7 @@
+{
+  "name": "JG Energy Manager",
+  "content_in_root": false,
+  "filename": "jg_energy_manager.zip",
+  "homeassistant": "2026.11.0",
+  "render_readme": true
+}

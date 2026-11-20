@@ -1,0 +1,12 @@
+{
+  "domain": "jg_energy_manager",
+  "name": "JG Energy Manager",
+  "codeowners": ["@MashmanAU"],
+  "config_flow": true,
+  "documentation": "https://github.com/MashmanAU/jg-energy-manager",
+  "integration_type": "hub",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/MashmanAU/jg-energy-manager/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

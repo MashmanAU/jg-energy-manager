@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip pytest
+      - run: python scripts/validate_package.py
+      - run: python -m pytest
+      - run: python scripts/build_release.py
+      - name: Verify tag matches manifest
+        shell: python
+        run: |
+          import json, os
+          version = json.load(open("custom_components/jg_energy_manager/manifest.json"))["version"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          assert tag == f"v{version}", f"tag {tag} does not match v{version}"
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: JG Energy Manager ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/jg_energy_manager.zip
+            dist/jg-energy-manager-v*.zip
+            dist/SHA256SUMS
