@@ -12,7 +12,7 @@
       },
       "energy": {
         "title": "Energy inputs",
-        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.1.4.",
+        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.1.5.",
         "data": {
           "battery_soc_entity": "Battery state of charge sensor",
           "battery_power_entity": "Battery power sensor (optional)",
@@ -103,7 +103,7 @@
       },
       "secondary": {
         "title": "Future on/off charger",
-        "description": "The second charger is stored and diagnosed in v0.1.4. Automatic control logic is intentionally not enabled yet.",
+        "description": "The second charger is stored and diagnosed in v0.1.5. Automatic control logic is intentionally not enabled yet.",
         "data": {
           "secondary_enabled": "Configure second charger",
           "secondary_name": "Second charger name",
@@ -112,13 +112,14 @@
           "secondary_power_entity": "Second charger power sensor (optional)"
         },
         "data_description": {
-          "secondary_enabled": "v0.1.4 stores and diagnoses this charger but does not control it automatically."
+          "secondary_enabled": "v0.1.5 stores and diagnoses this charger but does not control it automatically."
         }
       }
     },
     "error": {
       "invalid_connected_states": "Enter at least one connected state, for example B,C.",
       "invalid_peak_months": "Use comma-separated month numbers from 1 to 12.",
+      "invalid_phases": "Select either 1 phase or 3 phases.",
       "secondary_switch_required": "Select an on/off switch when the second charger is enabled."
     },
     "abort": {
@@ -237,13 +238,14 @@
           "secondary_power_entity": "Second charger power sensor (optional)"
         },
         "data_description": {
-          "secondary_enabled": "v0.1.4 stores and diagnoses this charger but does not control it automatically."
+          "secondary_enabled": "v0.1.5 stores and diagnoses this charger but does not control it automatically."
         }
       }
     },
     "error": {
       "invalid_connected_states": "Enter at least one connected state, for example B,C.",
       "invalid_peak_months": "Use comma-separated month numbers from 1 to 12.",
+      "invalid_phases": "Select either 1 phase or 3 phases.",
       "secondary_switch_required": "Select an on/off switch when the second charger is enabled."
     }
   },
@@ -258,6 +260,12 @@
       "options": {
         "positive_discharge": "Positive means discharge",
         "positive_charge": "Positive means charge"
+      }
+    },
+    "charging_phases": {
+      "options": {
+        "single_phase": "1 phase",
+        "three_phase": "3 phases"
       }
     }
   },

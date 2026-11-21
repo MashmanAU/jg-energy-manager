@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "jg_energy_manager"
 NAME: Final = "JG Energy Manager"
-VERSION: Final = "0.1.4"
+VERSION: Final = "0.1.5"
 PLATFORMS: Final = ["binary_sensor", "button", "select", "sensor", "switch"]
 
 CONF_NAME: Final = "name"
@@ -61,6 +61,8 @@ GRID_POSITIVE_IMPORT: Final = "positive_import"
 GRID_NEGATIVE_IMPORT: Final = "negative_import"
 BATTERY_POSITIVE_DISCHARGE: Final = "positive_discharge"
 BATTERY_POSITIVE_CHARGE: Final = "positive_charge"
+PHASE_OPTION_SINGLE: Final = "single_phase"
+PHASE_OPTION_THREE: Final = "three_phase"
 
 OVERRIDE_AUTOMATIC: Final = "automatic"
 OVERRIDE_FORCE_OFF: Final = "force_off"

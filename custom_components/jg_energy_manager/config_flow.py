@@ -25,6 +25,14 @@ def _time() -> selector.TimeSelector:
     return selector.TimeSelector()
 
 
+def _text() -> selector.TextSelector:
+    return selector.TextSelector()
+
+
+def _boolean() -> selector.BooleanSelector:
+    return selector.BooleanSelector()
+
+
 def _peak_months(value: Any) -> str:
     text = cv.string(value)
     try:
@@ -66,12 +74,31 @@ def _number(minimum: float, maximum: float, step: float, unit: str | None = None
 
 def _limits_form_values(defaults: dict[str, Any]) -> dict[str, Any]:
     """Return Limits defaults in the types expected by Home Assistant selectors."""
-    return {**defaults, CONF_PHASES: str(defaults[CONF_PHASES])}  # noqa: F405
+    stored = defaults[CONF_PHASES]  # noqa: F405
+    if stored in (PHASE_OPTION_SINGLE, PHASE_OPTION_THREE):  # noqa: F405
+        selected = stored
+    else:
+        selected = PHASE_OPTION_THREE if int(stored) == 3 else PHASE_OPTION_SINGLE  # noqa: F405
+    return {
+        **defaults,
+        CONF_PHASES: selected,  # noqa: F405
+    }
 
 
 def _limits_storage_values(user_input: dict[str, Any]) -> dict[str, Any]:
     """Return submitted Limits values in their canonical storage types."""
-    return {**user_input, CONF_PHASES: int(user_input[CONF_PHASES])}  # noqa: F405
+    selected = user_input[CONF_PHASES]  # noqa: F405
+    phase_map = {
+        PHASE_OPTION_SINGLE: 1,  # noqa: F405
+        PHASE_OPTION_THREE: 3,  # noqa: F405
+        "1": 1,
+        "3": 3,
+        1: 1,
+        3: 3,
+    }
+    if selected not in phase_map:
+        raise vol.Invalid("Select either single-phase or three-phase charging")
+    return {**user_input, CONF_PHASES: phase_map[selected]}  # noqa: F405
 
 
 def _energy_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -153,7 +180,11 @@ def _limits_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_CURRENT_STEP_A, default=defaults[CONF_CURRENT_STEP_A]): _number(0.1, 5, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_SUPPLY_VOLTAGE, default=defaults[CONF_SUPPLY_VOLTAGE]): _number(100, 260, 1, "V"),  # noqa: E501,F405
             vol.Required(CONF_PHASES, default=defaults[CONF_PHASES]): selector.SelectSelector(  # noqa: F405
-                selector.SelectSelectorConfig(options=["1", "3"], mode=selector.SelectSelectorMode.DROPDOWN)
+                selector.SelectSelectorConfig(
+                    options=[PHASE_OPTION_SINGLE, PHASE_OPTION_THREE],  # noqa: F405
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key="charging_phases",
+                )
             ),
             vol.Required(CONF_CHARGING_EFFICIENCY, default=defaults[CONF_CHARGING_EFFICIENCY]): _number(0.5, 1.0, 0.01),  # noqa: E501,F405
             vol.Required(CONF_SOLAR_START_MARGIN_W, default=defaults[CONF_SOLAR_START_MARGIN_W]): _number(0, 5000, 50, "W"),  # noqa: E501,F405
@@ -170,9 +201,9 @@ def _control_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_NO_DEMAND_TIMEOUT_S, default=defaults[CONF_NO_DEMAND_TIMEOUT_S]): _number(30, 1800, 30, "s"),  # noqa: E501,F405
             vol.Required(CONF_COMMAND_DEADBAND_A, default=defaults[CONF_COMMAND_DEADBAND_A]): _number(0, 5, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_MIN_COMMAND_INTERVAL_S, default=defaults[CONF_MIN_COMMAND_INTERVAL_S]): _number(5, 300, 5, "s"),  # noqa: E501,F405
-            vol.Required(CONF_STOP_WHEN_DISABLED, default=defaults[CONF_STOP_WHEN_DISABLED]): bool,  # noqa: F405
-            vol.Required(CONF_FAIL_SAFE_STOP, default=defaults[CONF_FAIL_SAFE_STOP]): bool,  # noqa: F405
-            vol.Required(CONF_INITIAL_OBSERVE_ONLY, default=defaults[CONF_INITIAL_OBSERVE_ONLY]): bool,  # noqa: F405
+            vol.Required(CONF_STOP_WHEN_DISABLED, default=defaults[CONF_STOP_WHEN_DISABLED]): _boolean(),  # noqa: F405
+            vol.Required(CONF_FAIL_SAFE_STOP, default=defaults[CONF_FAIL_SAFE_STOP]): _boolean(),  # noqa: F405
+            vol.Required(CONF_INITIAL_OBSERVE_ONLY, default=defaults[CONF_INITIAL_OBSERVE_ONLY]): _boolean(),  # noqa: F405
         }
     )
 
@@ -180,8 +211,8 @@ def _control_schema(defaults: dict[str, Any]) -> vol.Schema:
 def _secondary_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required(CONF_SECONDARY_ENABLED, default=defaults.get(CONF_SECONDARY_ENABLED, False)): bool,  # noqa: E501,F405
-            vol.Required(CONF_SECONDARY_NAME, default=defaults.get(CONF_SECONDARY_NAME, "Charger 2")): cv.string,  # noqa: E501,F405
+            vol.Required(CONF_SECONDARY_ENABLED, default=defaults.get(CONF_SECONDARY_ENABLED, False)): _boolean(),  # noqa: E501,F405
+            vol.Required(CONF_SECONDARY_NAME, default=defaults.get(CONF_SECONDARY_NAME, "Charger 2")): _text(),  # noqa: E501,F405
             vol.Optional(CONF_SECONDARY_SWITCH_ENTITY): _entity(["switch", "input_boolean"]),  # noqa: E501,F405
             vol.Optional(CONF_SECONDARY_STATUS_ENTITY): _entity(["sensor", "binary_sensor"]),  # noqa: E501,F405
             vol.Optional(CONF_SECONDARY_POWER_ENTITY): _entity("sensor"),  # noqa: F405
@@ -205,8 +236,8 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_NAME, default=DEFAULTS[CONF_NAME]): cv.string,  # noqa: F405
-                    vol.Required(CONF_INITIAL_OBSERVE_ONLY, default=True): bool,  # noqa: F405
+                    vol.Required(CONF_NAME, default=DEFAULTS[CONF_NAME]): _text(),  # noqa: F405
+                    vol.Required(CONF_INITIAL_OBSERVE_ONLY, default=True): _boolean(),  # noqa: F405
                 }
             ),
         )
@@ -248,7 +279,14 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
 
     async def async_step_limits(self, user_input=None) -> ConfigFlowResult:
         if user_input is not None:
-            user_input = _limits_storage_values(user_input)
+            try:
+                user_input = _limits_storage_values(user_input)
+            except vol.Invalid:
+                return self.async_show_form(
+                    step_id="limits",
+                    data_schema=_limits_schema(self._data),
+                    errors={CONF_PHASES: "invalid_phases"},  # noqa: F405
+                )
         return await self._next("limits", user_input, _limits_schema(self._data), self.async_step_control)
 
     async def async_step_control(self, user_input=None) -> ConfigFlowResult:
@@ -344,7 +382,16 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
     async def async_step_limits(self, user_input=None) -> ConfigFlowResult:
         current = _limits_form_values(self.current)
         if user_input is not None:
-            user_input = _limits_storage_values(user_input)
+            try:
+                user_input = _limits_storage_values(user_input)
+            except vol.Invalid:
+                return self.async_show_form(
+                    step_id="limits",
+                    data_schema=self.add_suggested_values_to_schema(
+                        _limits_schema(current), current
+                    ),
+                    errors={CONF_PHASES: "invalid_phases"},  # noqa: F405
+                )
             return await self._save_step("limits", user_input, _limits_schema(current))
         suggested = self.add_suggested_values_to_schema(
             _limits_schema(current), current

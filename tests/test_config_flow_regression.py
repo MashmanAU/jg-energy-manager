@@ -155,16 +155,37 @@ def test_peak_months_normaliser_accepts_defaults_and_rejects_bad_values():
 def test_limits_phase_values_convert_between_form_and_storage_types():
     """Selectors render strings while persisted configuration uses integers."""
     form_values = _compiled_function(
-        "_limits_form_values", {"Any": Any, "CONF_PHASES": "phases"}
+        "_limits_form_values",
+        {
+            "Any": Any,
+            "CONF_PHASES": "phases",
+            "PHASE_OPTION_SINGLE": "single_phase",
+            "PHASE_OPTION_THREE": "three_phase",
+        },
     )
     storage_values = _compiled_function(
-        "_limits_storage_values", {"Any": Any, "CONF_PHASES": "phases"}
+        "_limits_storage_values",
+        {
+            "Any": Any,
+            "CONF_PHASES": "phases",
+            "PHASE_OPTION_SINGLE": "single_phase",
+            "PHASE_OPTION_THREE": "three_phase",
+            "vol": SimpleNamespace(Invalid=ValueError),
+        },
     )
 
-    assert form_values({"phases": 1, "other": 2}) == {"phases": "1", "other": 2}
-    assert form_values({"phases": 3}) == {"phases": "3"}
-    assert storage_values({"phases": "1", "other": 2}) == {"phases": 1, "other": 2}
-    assert storage_values({"phases": "3"}) == {"phases": 3}
+    assert form_values({"phases": 1, "other": 2}) == {
+        "phases": "single_phase",
+        "other": 2,
+    }
+    assert form_values({"phases": 3}) == {"phases": "three_phase"}
+    assert form_values({"phases": "single_phase"}) == {"phases": "single_phase"}
+    assert storage_values({"phases": "single_phase", "other": 2}) == {
+        "phases": 1,
+        "other": 2,
+    }
+    assert storage_values({"phases": "three_phase"}) == {"phases": 3}
+    assert storage_values({"phases": "1"}) == {"phases": 1}
 
 
 def test_schedule_progression_renders_limits_with_string_phase_default():
@@ -236,7 +257,8 @@ def test_initial_and_options_limits_steps_store_integer_phases():
         and isinstance(call.func, ast.Attribute)
         and call.func.attr == "add_suggested_values_to_schema"
     ]
-    assert len(suggested_calls) == 1
-    assert len(suggested_calls[0].args) == 2
-    assert isinstance(suggested_calls[0].args[1], ast.Name)
-    assert suggested_calls[0].args[1].id == "current"
+    assert len(suggested_calls) == 2
+    for call in suggested_calls:
+        assert len(call.args) == 2
+        assert isinstance(call.args[1], ast.Name)
+        assert call.args[1].id == "current"

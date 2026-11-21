@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5 - 2026-11-21
+
+- Fixed the persistent Schedule submission failure occurring while Home Assistant serialised the next Limits form.
+- Removed digit-only phase selector values (`"1"` and `"3"`) from the Home Assistant form boundary and replaced them with stable string tokens (`single_phase` and `three_phase`) translated as **1 phase** and **3 phases**.
+- Kept canonical stored phase values as integers and retained compatibility with legacy integer and string phase values.
+- Replaced remaining primitive text and boolean validators in rendered forms with official Home Assistant Text and Boolean selectors.
+- Added a Home Assistant-compatible end-to-end flow harness that serialises and advances User, Energy, Charger, Schedule, Limits, Control and Secondary through config-entry creation, plus complete Options Flow rendering and Limits persistence coverage.
+- Preserved all entity-selector, connected-state, peak-month and validation fixes through v0.1.4.
+
 ## 0.1.4 - 2026-11-21
 
 - Fixed the Limits form rejecting the numeric stored/default phase value when its selector options are strings (`1` and `3`).
