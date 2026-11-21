@@ -1,4 +1,4 @@
-# v0.1.3 requirement traceability
+# v0.1.4 requirement traceability
 
 | Requirement | Implementation |
 |---|---|
@@ -9,7 +9,7 @@
 | Daytime solar surplus and peak reserve | Export-feedback calculation, start/run margins, configurable SOC reserve and hysteresis |
 | 3-9 pm peak protection | Configurable start/end and months; supplied tariff defaults to Jan-Mar, Jun-Aug and Nov-Dec |
 | Observe Only / Dry Run | Persisted switch suppresses every actuator call while retaining calculations |
-| Future second dumb charger | Name, on/off switch, status and power fields in config/options; diagnostic state; no v0.1.3 automatic writes |
+| Future second dumb charger | Name, on/off switch, status and power fields in config/options; diagnostic state; no v0.1.4 automatic writes |
 | All mappings and logic configurable in UI | Multi-step config flow plus options menu for energy, charger, schedule, limits, control and secondary charger |
 | Diagnostic explanation | State, reason, requested current/power, required/solar power, delivered/remaining energy, projected completion/deadline and health entities |
 | No AlphaESS write control | Coordinator has no battery service-call path; battery entities are read-only |

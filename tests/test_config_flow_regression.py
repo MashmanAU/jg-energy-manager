@@ -24,6 +24,13 @@ def _function(name: str) -> ast.FunctionDef:
     )
 
 
+def _compiled_function(name: str, namespace: dict[str, Any]):
+    function = _function(name)
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    exec(compile(module, str(CONFIG_FLOW), "exec"), namespace)
+    return namespace[name]
+
+
 def test_charger_entity_pickers_do_not_apply_domain_filters():
     """Home Assistant must not reject compatible third-party charger entities."""
     function = _function("_charger_schema")
@@ -143,3 +150,93 @@ def test_peak_months_normaliser_accepts_defaults_and_rejects_bad_values():
             pass
         else:
             raise AssertionError(f"Invalid peak months accepted: {invalid!r}")
+
+
+def test_limits_phase_values_convert_between_form_and_storage_types():
+    """Selectors render strings while persisted configuration uses integers."""
+    form_values = _compiled_function(
+        "_limits_form_values", {"Any": Any, "CONF_PHASES": "phases"}
+    )
+    storage_values = _compiled_function(
+        "_limits_storage_values", {"Any": Any, "CONF_PHASES": "phases"}
+    )
+
+    assert form_values({"phases": 1, "other": 2}) == {"phases": "1", "other": 2}
+    assert form_values({"phases": 3}) == {"phases": "3"}
+    assert storage_values({"phases": "1", "other": 2}) == {"phases": 1, "other": 2}
+    assert storage_values({"phases": "3"}) == {"phases": 3}
+
+
+def test_schedule_progression_renders_limits_with_string_phase_default():
+    """The initial flow's Schedule-to-Limits transition prepares selector types."""
+    limits_schema = _function("_limits_schema")
+    assert any(
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Name)
+        and call.func.id == "_limits_form_values"
+        for call in ast.walk(limits_schema)
+    )
+
+    tree = ast.parse(CONFIG_FLOW.read_text(encoding="utf-8"))
+    config_flow = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "JGEnergyConfigFlow"
+    )
+    schedule_step = next(
+        node
+        for node in config_flow.body
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "async_step_schedule"
+    )
+    assert any(
+        isinstance(node, ast.Attribute) and node.attr == "async_step_limits"
+        for node in ast.walk(schedule_step)
+    )
+
+
+def test_initial_and_options_limits_steps_store_integer_phases():
+    """Both Limits handlers convert submitted selector strings before storage."""
+    tree = ast.parse(CONFIG_FLOW.read_text(encoding="utf-8"))
+    classes = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef)
+        and node.name in {"JGEnergyConfigFlow", "JGEnergyOptionsFlow"}
+    }
+
+    assert set(classes) == {"JGEnergyConfigFlow", "JGEnergyOptionsFlow"}
+    for class_node in classes.values():
+        limits_step = next(
+            node
+            for node in class_node.body
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "async_step_limits"
+        )
+        assert any(
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id == "_limits_storage_values"
+            for call in ast.walk(limits_step)
+        )
+
+    options_step = next(
+        node
+        for node in classes["JGEnergyOptionsFlow"].body
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "async_step_limits"
+    )
+    assert any(
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Name)
+        and call.func.id == "_limits_form_values"
+        for call in ast.walk(options_step)
+    )
+    suggested_calls = [
+        call
+        for call in ast.walk(options_step)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "add_suggested_values_to_schema"
+    ]
+    assert len(suggested_calls) == 1
+    assert len(suggested_calls[0].args) == 2
+    assert isinstance(suggested_calls[0].args[1], ast.Name)
+    assert suggested_calls[0].args[1].id == "current"

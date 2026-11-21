@@ -64,6 +64,16 @@ def _number(minimum: float, maximum: float, step: float, unit: str | None = None
     )
 
 
+def _limits_form_values(defaults: dict[str, Any]) -> dict[str, Any]:
+    """Return Limits defaults in the types expected by Home Assistant selectors."""
+    return {**defaults, CONF_PHASES: str(defaults[CONF_PHASES])}  # noqa: F405
+
+
+def _limits_storage_values(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Return submitted Limits values in their canonical storage types."""
+    return {**user_input, CONF_PHASES: int(user_input[CONF_PHASES])}  # noqa: F405
+
+
 def _energy_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
@@ -134,6 +144,7 @@ def _schedule_schema(defaults: dict[str, Any]) -> vol.Schema:
 
 
 def _limits_schema(defaults: dict[str, Any]) -> vol.Schema:
+    defaults = _limits_form_values(defaults)
     return vol.Schema(
         {
             vol.Required(CONF_MIN_CURRENT_A, default=defaults[CONF_MIN_CURRENT_A]): _number(1, 32, 0.1, "A"),  # noqa: E501,F405
@@ -236,6 +247,8 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
         return await self._next("schedule", user_input, _schedule_schema(self._data), self.async_step_limits)
 
     async def async_step_limits(self, user_input=None) -> ConfigFlowResult:
+        if user_input is not None:
+            user_input = _limits_storage_values(user_input)
         return await self._next("limits", user_input, _limits_schema(self._data), self.async_step_control)
 
     async def async_step_control(self, user_input=None) -> ConfigFlowResult:
@@ -329,7 +342,14 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
         return await self._save_step("schedule", user_input, _schedule_schema(self.current))
 
     async def async_step_limits(self, user_input=None) -> ConfigFlowResult:
-        return await self._save_step("limits", user_input, _limits_schema(self.current))
+        current = _limits_form_values(self.current)
+        if user_input is not None:
+            user_input = _limits_storage_values(user_input)
+            return await self._save_step("limits", user_input, _limits_schema(current))
+        suggested = self.add_suggested_values_to_schema(
+            _limits_schema(current), current
+        )
+        return self.async_show_form(step_id="limits", data_schema=suggested)
 
     async def async_step_control(self, user_input=None) -> ConfigFlowResult:
         return await self._save_step("control", user_input, _control_schema(self.current))

@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "jg_energy_manager"
 NAME: Final = "JG Energy Manager"
-VERSION: Final = "0.1.3"
+VERSION: Final = "0.1.4"
 PLATFORMS: Final = ["binary_sensor", "button", "select", "sensor", "switch"]
 
 CONF_NAME: Final = "name"
@@ -87,7 +87,7 @@ DEFAULTS: Final = {
     CONF_MAX_CHARGER_POWER_W: 7360.0,
     CONF_CURRENT_STEP_A: 0.1,
     CONF_SUPPLY_VOLTAGE: 230.0,
-    CONF_PHASES: "1",
+    CONF_PHASES: 1,
     CONF_CHARGING_EFFICIENCY: 0.90,
     CONF_SOLAR_START_MARGIN_W: 400.0,
     CONF_SOLAR_RUN_MARGIN_W: 150.0,

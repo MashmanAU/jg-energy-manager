@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 - 2026-11-21
+
+- Fixed the Limits form rejecting the numeric stored/default phase value when its selector options are strings (`1` and `3`).
+- Rendered phase defaults and suggested values as strings in both the initial Config Flow and Options Flow.
+- Converted submitted phase selections back to integers before configuration or options storage.
+- Added regression coverage for the Schedule-to-Limits transition, phase type conversion and Limits configuration in Options Flow.
+- Preserved all config-flow, selector and validation corrections through v0.1.3.
+
 ## 0.1.3 - 2026-11-21
 
 - Fixed Smart charger submission advancing into a Schedule form containing the remaining non-serialisable `peak_months` validator.
