@@ -76,11 +76,24 @@ def _serialise(result):
     return result
 
 
+def _assert_number_units_are_valid(result):
+    """Real selector configs must omit unit_of_measurement or contain a string."""
+    if result["type"] != "form":
+        return
+    for validator in result["data_schema"].schema.values():
+        config = getattr(validator, "config", None)
+        if not isinstance(config, dict) or "unit_of_measurement" not in config:
+            continue
+        assert isinstance(config["unit_of_measurement"], str)
+
+
 def _submit(flow, result, values):
     validated = result["data_schema"](values)
-    return _serialise(
+    next_result = _serialise(
         _run(getattr(flow, f"async_step_{result['step_id']}")(validated))
     )
+    _assert_number_units_are_valid(next_result)
+    return next_result
 
 
 def test_built_hacs_archive_completes_real_home_assistant_config_flow(tmp_path):
@@ -89,6 +102,7 @@ def test_built_hacs_archive_completes_real_home_assistant_config_flow(tmp_path):
     flow = module.JGEnergyConfigFlow()
 
     result = _serialise(_run(flow.async_step_user()))
+    _assert_number_units_are_valid(result)
     result = _submit(
         flow, result, {"name": "JG Energy Manager", "initial_observe_only": True}
     )
@@ -137,6 +151,12 @@ def test_built_hacs_archive_completes_real_home_assistant_config_flow(tmp_path):
         },
     )
     assert result["step_id"] == "limits"
+    efficiency = next(
+        validator
+        for marker, validator in result["data_schema"].schema.items()
+        if marker.schema == "charging_efficiency"
+    )
+    assert "unit_of_measurement" not in efficiency.config
 
     result = _submit(
         flow,

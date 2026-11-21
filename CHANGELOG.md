@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.7 - 2026-11-22
+
+- Fixed the Home Assistant 2026.11.1/Probatio 0.13.0 Limits failure caused by passing `unit_of_measurement=None` to `NumberSelectorConfig` for charging efficiency.
+- Changed the number-selector helper to omit `unit_of_measurement` entirely for unitless fields while retaining real unit strings for current, power, voltage, percentages and time values.
+- Audited every selector helper and config construction for optional parameters explicitly supplied as `None`; no other instances remain.
+- Added local regression checks, archive AST validation and real Home Assistant assertions that optional selector keys are absent rather than null.
+- Preserved the v0.1.6 peak-months removal, schema diagnostics and mandatory released-HACS-archive test through config-entry creation.
+
 ## 0.1.6 - 2026-11-22
 
 - Confirmed from the Home Assistant Core traceback that the reproduced failure was Probatio serialising a Schedule schema containing the legacy `_peak_months` callable.

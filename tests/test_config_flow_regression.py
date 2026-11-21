@@ -45,6 +45,56 @@ def test_charger_entity_pickers_do_not_apply_domain_filters():
     assert all(not call.args and not call.keywords for call in entity_calls)
 
 
+def test_number_selector_omits_absent_optional_unit():
+    """Probatio rejects an explicit None for unit_of_measurement."""
+    function = _function("_number")
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+
+    captured: list[dict[str, Any]] = []
+
+    class NumberSelectorConfig(dict):
+        def __init__(self, **values: Any) -> None:
+            super().__init__(values)
+            captured.append(values)
+
+    namespace: dict[str, Any] = {
+        "Any": Any,
+        "selector": SimpleNamespace(
+            NumberSelectorConfig=NumberSelectorConfig,
+            NumberSelector=lambda config: config,
+            NumberSelectorMode=SimpleNamespace(BOX="box"),
+        ),
+    }
+    exec(compile(module, str(CONFIG_FLOW), "exec"), namespace)
+    number = namespace["_number"]
+
+    unitless = number(0.5, 1.0, 0.01)
+    with_unit = number(1, 32, 0.1, "A")
+
+    assert unitless == {"min": 0.5, "max": 1.0, "step": 0.01, "mode": "box"}
+    assert "unit_of_measurement" not in unitless
+    assert with_unit["unit_of_measurement"] == "A"
+    assert all(value is not None for config in captured for value in config.values())
+
+
+def test_selector_config_calls_do_not_pass_literal_none():
+    """Optional selector keys must be omitted instead of supplied as None."""
+    tree = ast.parse(CONFIG_FLOW.read_text(encoding="utf-8"))
+    selector_configs = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr.endswith("SelectorConfig")
+    ]
+    assert selector_configs
+    for call in selector_configs:
+        assert all(
+            not (isinstance(keyword.value, ast.Constant) and keyword.value.value is None)
+            for keyword in call.keywords
+        )
+
+
 def test_connected_states_accept_text_and_selector_lists():
     """The validator accepts both current text input and future list selectors."""
     function = _function("_connected_states")

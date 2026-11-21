@@ -71,6 +71,8 @@ class Schema:
 
 class _Config:
     def __init__(self, **values: Any) -> None:
+        if any(value is None for value in values.values()):
+            raise Invalid("optional selector configuration values must be omitted")
         self.__dict__.update(values)
 
     def as_dict(self) -> dict[str, Any]:

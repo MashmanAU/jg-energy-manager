@@ -73,6 +73,22 @@ def main() -> None:
                         f"{name} embeds custom callable validator {node.id}"
                     )
 
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            function = node.func
+            if not (
+                isinstance(function, ast.Attribute)
+                and function.attr.endswith("SelectorConfig")
+            ):
+                continue
+            for keyword in node.keywords:
+                if isinstance(keyword.value, ast.Constant) and keyword.value.value is None:
+                    raise SystemExit(
+                        f"Selector config {function.attr} explicitly passes None to "
+                        f"{keyword.arg}"
+                    )
+
         manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
         strings = json.loads((target / "strings.json").read_text(encoding="utf-8"))
         translation = json.loads(
