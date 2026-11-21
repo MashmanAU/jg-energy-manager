@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 - 2026-11-21
+
+- Fixed Smart charger submission advancing into a Schedule form containing the remaining non-serialisable `peak_months` validator.
+- Moved peak-month normalisation into the config and options step handlers, matching the v0.1.2 connected-state correction.
+- Added field-level validation errors for invalid connected states and peak months instead of returning a generic flow error.
+- Preserved the unfiltered Smart charger selectors and `B,C` connected-state handling from v0.1.1 and v0.1.2.
+- Added regression coverage to prevent custom validators being embedded in Home Assistant form schemas.
+
 ## 0.1.2 - 2026-11-21
 
 - Fixed the Energy inputs submission returning `Unknown error occurred` and then validating Energy fields against the Smart charger schema on a second submit.

@@ -123,7 +123,9 @@ def _schedule_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_OVERNIGHT_START, default=defaults[CONF_OVERNIGHT_START]): _time(),  # noqa: E501,F405
             vol.Required(CONF_PEAK_START, default=defaults[CONF_PEAK_START]): _time(),  # noqa: F405
             vol.Required(CONF_PEAK_END, default=defaults[CONF_PEAK_END]): _time(),  # noqa: F405
-            vol.Required(CONF_PEAK_MONTHS, default=defaults[CONF_PEAK_MONTHS]): _peak_months,  # noqa: E501,F405
+            # Custom callables cannot be serialised as Home Assistant form
+            # selectors. Normalise and validate this text in the step handler.
+            vol.Required(CONF_PEAK_MONTHS, default=defaults[CONF_PEAK_MONTHS]): selector.TextSelector(),  # noqa: E501,F405
             vol.Required(CONF_OVERNIGHT_BATTERY_FLOOR, default=defaults[CONF_OVERNIGHT_BATTERY_FLOOR]): _number(0, 100, 1, "%"),  # noqa: E501,F405
             vol.Required(CONF_DAYTIME_BATTERY_RESERVE, default=defaults[CONF_DAYTIME_BATTERY_RESERVE]): _number(0, 100, 1, "%"),  # noqa: E501,F405
             vol.Required(CONF_SOC_HYSTERESIS, default=defaults[CONF_SOC_HYSTERESIS]): _number(0, 20, 0.5, "%"),  # noqa: E501,F405
@@ -204,12 +206,33 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
     async def async_step_charger(self, user_input=None) -> ConfigFlowResult:
         if user_input is not None:
             user_input = dict(user_input)
-            user_input[CONF_CONNECTED_STATES] = _connected_states(  # noqa: F405
-                user_input[CONF_CONNECTED_STATES]  # noqa: F405
-            )
+            try:
+                user_input[CONF_CONNECTED_STATES] = _connected_states(  # noqa: F405
+                    user_input[CONF_CONNECTED_STATES]  # noqa: F405
+                )
+            except vol.Invalid:
+                values = {**self._data, **user_input}
+                return self.async_show_form(
+                    step_id="charger",
+                    data_schema=_charger_schema(values),
+                    errors={CONF_CONNECTED_STATES: "invalid_connected_states"},  # noqa: F405
+                )
         return await self._next("charger", user_input, _charger_schema(self._data), self.async_step_schedule)
 
     async def async_step_schedule(self, user_input=None) -> ConfigFlowResult:
+        if user_input is not None:
+            user_input = dict(user_input)
+            try:
+                user_input[CONF_PEAK_MONTHS] = _peak_months(  # noqa: F405
+                    user_input[CONF_PEAK_MONTHS]  # noqa: F405
+                )
+            except vol.Invalid:
+                values = {**self._data, **user_input}
+                return self.async_show_form(
+                    step_id="schedule",
+                    data_schema=_schedule_schema(values),
+                    errors={CONF_PEAK_MONTHS: "invalid_peak_months"},  # noqa: F405
+                )
         return await self._next("schedule", user_input, _schedule_schema(self._data), self.async_step_limits)
 
     async def async_step_limits(self, user_input=None) -> ConfigFlowResult:
@@ -272,12 +295,37 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
     async def async_step_charger(self, user_input=None) -> ConfigFlowResult:
         if user_input is not None:
             user_input = dict(user_input)
-            user_input[CONF_CONNECTED_STATES] = _connected_states(  # noqa: F405
-                user_input[CONF_CONNECTED_STATES]  # noqa: F405
-            )
+            try:
+                user_input[CONF_CONNECTED_STATES] = _connected_states(  # noqa: F405
+                    user_input[CONF_CONNECTED_STATES]  # noqa: F405
+                )
+            except vol.Invalid:
+                values = {**self.current, **user_input}
+                return self.async_show_form(
+                    step_id="charger",
+                    data_schema=self.add_suggested_values_to_schema(
+                        _charger_schema(values), values
+                    ),
+                    errors={CONF_CONNECTED_STATES: "invalid_connected_states"},  # noqa: F405
+                )
         return await self._save_step("charger", user_input, _charger_schema(self.current))
 
     async def async_step_schedule(self, user_input=None) -> ConfigFlowResult:
+        if user_input is not None:
+            user_input = dict(user_input)
+            try:
+                user_input[CONF_PEAK_MONTHS] = _peak_months(  # noqa: F405
+                    user_input[CONF_PEAK_MONTHS]  # noqa: F405
+                )
+            except vol.Invalid:
+                values = {**self.current, **user_input}
+                return self.async_show_form(
+                    step_id="schedule",
+                    data_schema=self.add_suggested_values_to_schema(
+                        _schedule_schema(values), values
+                    ),
+                    errors={CONF_PEAK_MONTHS: "invalid_peak_months"},  # noqa: F405
+                )
         return await self._save_step("schedule", user_input, _schedule_schema(self.current))
 
     async def async_step_limits(self, user_input=None) -> ConfigFlowResult:

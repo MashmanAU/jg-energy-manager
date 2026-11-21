@@ -5,7 +5,7 @@ All values are editable in Home Assistant under the integration's **Configure** 
 ## Energy inputs
 
 - Battery SOC entity (required)
-- Battery power entity and sign convention (optional; diagnostic in v0.1.2)
+- Battery power entity and sign convention (optional; diagnostic in v0.1.3)
 - Grid power entity and sign convention (required)
 - Solar power entity (required)
 
@@ -60,4 +60,4 @@ The charger entity pickers are intentionally not filtered by Home Assistant doma
 
 ## Second charger
 
-The name, on/off switch, status and power sensor are configurable now so the data model does not need to be migrated later. The v0.1.2 diagnostic state is `reserved_for_future_logic`; no automatic command is issued to this switch.
+The name, on/off switch, status and power sensor are configurable now so the data model does not need to be migrated later. The v0.1.3 diagnostic state is `reserved_for_future_logic`; no automatic command is issued to this switch.
