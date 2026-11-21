@@ -2,14 +2,37 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
 
+import probatio
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.helpers import config_validation as cv, selector
 
 from .const import *  # noqa: F403
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _checked_schema(step_id: str, schema: vol.Schema) -> vol.Schema:
+    """Fail and log before Home Assistant prepares an unserialisable form result."""
+    try:
+        probatio.to_field_list(schema, custom_serializer=cv.custom_serializer)
+    except Exception:
+        validators = {
+            str(getattr(marker, "schema", marker)): getattr(value, "__qualname__", type(value).__name__)
+            for marker, value in schema.schema.items()
+        }
+        _LOGGER.exception(
+            "JG Energy Manager %s schema is not serialisable; validators=%s",
+            step_id,
+            validators,
+        )
+        raise
+    return schema
 
 
 def _entity(domain: str | list[str] | None = None) -> selector.EntitySelector:
@@ -33,7 +56,7 @@ def _boolean() -> selector.BooleanSelector:
     return selector.BooleanSelector()
 
 
-def _peak_months(value: Any) -> str:
+def _normalise_month_list(value: Any) -> str:
     text = cv.string(value)
     try:
         months = {int(item.strip()) for item in text.split(",") if item.strip()}
@@ -102,7 +125,7 @@ def _limits_storage_values(user_input: dict[str, Any]) -> dict[str, Any]:
 
 
 def _energy_schema(defaults: dict[str, Any]) -> vol.Schema:
-    return vol.Schema(
+    return _checked_schema("energy", vol.Schema(
         {
             vol.Required(CONF_BATTERY_SOC_ENTITY): _entity("sensor"),  # noqa: F405
             vol.Optional(CONF_BATTERY_POWER_ENTITY): _entity("sensor"),  # noqa: F405
@@ -128,11 +151,11 @@ def _energy_schema(defaults: dict[str, Any]) -> vol.Schema:
             ),
             vol.Required(CONF_SOLAR_POWER_ENTITY): _entity("sensor"),  # noqa: F405
         }
-    )
+    ))
 
 
 def _charger_schema(defaults: dict[str, Any]) -> vol.Schema:
-    return vol.Schema(
+    return _checked_schema("charger", vol.Schema(
         {
             # Some third-party charger integrations expose otherwise compatible
             # controls through non-standard entity platforms.  Restricting the
@@ -149,11 +172,11 @@ def _charger_schema(defaults: dict[str, Any]) -> vol.Schema:
                 CONF_CONNECTED_STATES, default=defaults[CONF_CONNECTED_STATES]  # noqa: F405
             ): selector.TextSelector(),
         }
-    )
+    ))
 
 
 def _schedule_schema(defaults: dict[str, Any]) -> vol.Schema:
-    return vol.Schema(
+    return _checked_schema("schedule", vol.Schema(
         {
             vol.Required(CONF_TARGET_ENERGY_KWH, default=defaults[CONF_TARGET_ENERGY_KWH]): _number(0.5, 100, 0.5, "kWh"),  # noqa: E501,F405
             vol.Required(CONF_READY_BY, default=defaults[CONF_READY_BY]): _time(),  # noqa: F405
@@ -167,13 +190,29 @@ def _schedule_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_DAYTIME_BATTERY_RESERVE, default=defaults[CONF_DAYTIME_BATTERY_RESERVE]): _number(0, 100, 1, "%"),  # noqa: E501,F405
             vol.Required(CONF_SOC_HYSTERESIS, default=defaults[CONF_SOC_HYSTERESIS]): _number(0, 20, 0.5, "%"),  # noqa: E501,F405
         }
-    )
+    ))
 
 
 def _limits_schema(defaults: dict[str, Any]) -> vol.Schema:
-    defaults = _limits_form_values(defaults)
-    return vol.Schema(
-        {
+    try:
+        required_defaults = (
+            CONF_MIN_CURRENT_A,  # noqa: F405
+            CONF_MAX_CURRENT_A,  # noqa: F405
+            CONF_MAX_CHARGER_POWER_W,  # noqa: F405
+            CONF_CURRENT_STEP_A,  # noqa: F405
+            CONF_SUPPLY_VOLTAGE,  # noqa: F405
+            CONF_PHASES,  # noqa: F405
+            CONF_CHARGING_EFFICIENCY,  # noqa: F405
+            CONF_SOLAR_START_MARGIN_W,  # noqa: F405
+            CONF_SOLAR_RUN_MARGIN_W,  # noqa: F405
+            CONF_IDLE_POWER_W,  # noqa: F405
+        )
+        missing = [key for key in required_defaults if key not in defaults]
+        if missing:
+            raise KeyError(f"Missing Limits defaults: {', '.join(missing)}")
+        json.dumps({key: defaults[key] for key in required_defaults})
+        defaults = _limits_form_values(defaults)
+        return _checked_schema("limits", vol.Schema({
             vol.Required(CONF_MIN_CURRENT_A, default=defaults[CONF_MIN_CURRENT_A]): _number(1, 32, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_MAX_CURRENT_A, default=defaults[CONF_MAX_CURRENT_A]): _number(1, 80, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_MAX_CHARGER_POWER_W, default=defaults[CONF_MAX_CHARGER_POWER_W]): _number(500, 22000, 100, "W"),  # noqa: E501,F405
@@ -190,12 +229,17 @@ def _limits_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_SOLAR_START_MARGIN_W, default=defaults[CONF_SOLAR_START_MARGIN_W]): _number(0, 5000, 50, "W"),  # noqa: E501,F405
             vol.Required(CONF_SOLAR_RUN_MARGIN_W, default=defaults[CONF_SOLAR_RUN_MARGIN_W]): _number(0, 5000, 50, "W"),  # noqa: E501,F405
             vol.Required(CONF_IDLE_POWER_W, default=defaults[CONF_IDLE_POWER_W]): _number(0, 2000, 50, "W"),  # noqa: E501,F405
-        }
-    )
+        }))
+    except Exception:
+        _LOGGER.exception(
+            "Failed to build JG Energy Manager Limits schema; keys=%s",
+            sorted(defaults),
+        )
+        raise
 
 
 def _control_schema(defaults: dict[str, Any]) -> vol.Schema:
-    return vol.Schema(
+    return _checked_schema("control", vol.Schema(
         {
             vol.Required(CONF_CONTROL_INTERVAL_S, default=defaults[CONF_CONTROL_INTERVAL_S]): _number(10, 300, 5, "s"),  # noqa: E501,F405
             vol.Required(CONF_NO_DEMAND_TIMEOUT_S, default=defaults[CONF_NO_DEMAND_TIMEOUT_S]): _number(30, 1800, 30, "s"),  # noqa: E501,F405
@@ -205,11 +249,11 @@ def _control_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_FAIL_SAFE_STOP, default=defaults[CONF_FAIL_SAFE_STOP]): _boolean(),  # noqa: F405
             vol.Required(CONF_INITIAL_OBSERVE_ONLY, default=defaults[CONF_INITIAL_OBSERVE_ONLY]): _boolean(),  # noqa: F405
         }
-    )
+    ))
 
 
 def _secondary_schema(defaults: dict[str, Any]) -> vol.Schema:
-    return vol.Schema(
+    return _checked_schema("secondary", vol.Schema(
         {
             vol.Required(CONF_SECONDARY_ENABLED, default=defaults.get(CONF_SECONDARY_ENABLED, False)): _boolean(),  # noqa: E501,F405
             vol.Required(CONF_SECONDARY_NAME, default=defaults.get(CONF_SECONDARY_NAME, "Charger 2")): _text(),  # noqa: E501,F405
@@ -217,7 +261,7 @@ def _secondary_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Optional(CONF_SECONDARY_STATUS_ENTITY): _entity(["sensor", "binary_sensor"]),  # noqa: E501,F405
             vol.Optional(CONF_SECONDARY_POWER_ENTITY): _entity("sensor"),  # noqa: F405
         }
-    )
+    ))
 
 
 class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F405
@@ -227,6 +271,11 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
 
     def __init__(self) -> None:
         self._data: dict[str, Any] = dict(DEFAULTS)  # noqa: F405
+        _LOGGER.warning(
+            "Loaded JG Energy Manager config flow %s from %s",
+            VERSION,  # noqa: F405
+            __file__,
+        )
 
     async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         if user_input is not None:
@@ -262,32 +311,40 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
         return await self._next("charger", user_input, _charger_schema(self._data), self.async_step_schedule)
 
     async def async_step_schedule(self, user_input=None) -> ConfigFlowResult:
-        if user_input is not None:
-            user_input = dict(user_input)
-            try:
-                user_input[CONF_PEAK_MONTHS] = _peak_months(  # noqa: F405
-                    user_input[CONF_PEAK_MONTHS]  # noqa: F405
-                )
-            except vol.Invalid:
-                values = {**self._data, **user_input}
-                return self.async_show_form(
-                    step_id="schedule",
-                    data_schema=_schedule_schema(values),
-                    errors={CONF_PEAK_MONTHS: "invalid_peak_months"},  # noqa: F405
-                )
-        return await self._next("schedule", user_input, _schedule_schema(self._data), self.async_step_limits)
+        try:
+            if user_input is not None:
+                user_input = dict(user_input)
+                try:
+                    user_input[CONF_PEAK_MONTHS] = _normalise_month_list(  # noqa: F405
+                        user_input[CONF_PEAK_MONTHS]  # noqa: F405
+                    )
+                except vol.Invalid:
+                    values = {**self._data, **user_input}
+                    return self.async_show_form(
+                        step_id="schedule",
+                        data_schema=_schedule_schema(values),
+                        errors={CONF_PEAK_MONTHS: "invalid_month_list"},  # noqa: F405
+                    )
+            return await self._next("schedule", user_input, _schedule_schema(self._data), self.async_step_limits)
+        except Exception:
+            _LOGGER.exception("JG Energy Manager failed in async_step_schedule")
+            raise
 
     async def async_step_limits(self, user_input=None) -> ConfigFlowResult:
-        if user_input is not None:
-            try:
-                user_input = _limits_storage_values(user_input)
-            except vol.Invalid:
-                return self.async_show_form(
-                    step_id="limits",
-                    data_schema=_limits_schema(self._data),
-                    errors={CONF_PHASES: "invalid_phases"},  # noqa: F405
-                )
-        return await self._next("limits", user_input, _limits_schema(self._data), self.async_step_control)
+        try:
+            if user_input is not None:
+                try:
+                    user_input = _limits_storage_values(user_input)
+                except vol.Invalid:
+                    return self.async_show_form(
+                        step_id="limits",
+                        data_schema=_limits_schema(self._data),
+                        errors={CONF_PHASES: "invalid_phases"},  # noqa: F405
+                    )
+            return await self._next("limits", user_input, _limits_schema(self._data), self.async_step_control)
+        except Exception:
+            _LOGGER.exception("JG Energy Manager failed in async_step_limits")
+            raise
 
     async def async_step_control(self, user_input=None) -> ConfigFlowResult:
         return await self._next("control", user_input, _control_schema(self._data), self.async_step_secondary)
@@ -305,10 +362,23 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
         return self.async_show_form(step_id="secondary", data_schema=_secondary_schema(self._data))
 
     async def _next(self, step_id, user_input, schema, next_step):
-        if user_input is not None:
-            self._data.update(user_input)
-            return await next_step()
-        return self.async_show_form(step_id=step_id, data_schema=schema)
+        try:
+            if user_input is not None:
+                self._data.update(user_input)
+                _LOGGER.debug(
+                    "JG Energy Manager advancing from %s to %s",
+                    step_id,
+                    next_step.__name__,
+                )
+                return await next_step()
+            return self.async_show_form(step_id=step_id, data_schema=schema)
+        except Exception:
+            _LOGGER.exception(
+                "JG Energy Manager failed while handling transition from %s to %s",
+                step_id,
+                next_step.__name__,
+            )
+            raise
 
     @staticmethod
     def async_get_options_flow(config_entry):
@@ -365,7 +435,7 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             user_input = dict(user_input)
             try:
-                user_input[CONF_PEAK_MONTHS] = _peak_months(  # noqa: F405
+                user_input[CONF_PEAK_MONTHS] = _normalise_month_list(  # noqa: F405
                     user_input[CONF_PEAK_MONTHS]  # noqa: F405
                 )
             except vol.Invalid:
@@ -375,7 +445,7 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
                     data_schema=self.add_suggested_values_to_schema(
                         _schedule_schema(values), values
                     ),
-                    errors={CONF_PEAK_MONTHS: "invalid_peak_months"},  # noqa: F405
+                    errors={CONF_PEAK_MONTHS: "invalid_month_list"},  # noqa: F405
                 )
         return await self._save_step("schedule", user_input, _schedule_schema(self.current))
 

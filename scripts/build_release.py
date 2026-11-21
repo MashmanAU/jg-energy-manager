@@ -55,6 +55,10 @@ def main() -> None:
     print(f"Built {hacs_zip.relative_to(ROOT)}")
     print(f"Built {manual_zip.relative_to(ROOT)}")
     print(f"Built {checksums.relative_to(ROOT)}")
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "verify_release_archive.py")],
+        check=True,
+    )
 
 
 if __name__ == "__main__":

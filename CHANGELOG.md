@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.6 - 2026-11-22
+
+- Confirmed from the Home Assistant Core traceback that the reproduced failure was Probatio serialising a Schedule schema containing the legacy `_peak_months` callable.
+- Confirmed the supplied traceback occurred at 10:42, before the logged Home Assistant restarts at 13:31, 14:31 and 23:14; the v0.1.5 repository and HACS archives contain `TextSelector()` in the Schedule schema and cannot create that specific callable-validator result.
+- Removed the legacy `_peak_months` symbol entirely to make stale-code identification unambiguous while retaining post-submit month normalisation.
+- Added pre-return Probatio serialisation checks and explicit exception logging for every schema, Schedule, Limits and step transitions.
+- Added deterministic Limits-default and JSON-serialisability checks.
+- Added release-archive verification for duplicate files, legacy validator symbols, callable validators and Limits translations.
+- Added a mandatory GitHub test using Home Assistant 2026.11.1 and its real Probatio serializer against the built `dist/jg_energy_manager.zip`, advancing every first-time setup form through config-entry creation.
+
 ## 0.1.5 - 2026-11-21
 
 - Fixed the persistent Schedule submission failure occurring while Home Assistant serialised the next Limits form.

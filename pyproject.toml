@@ -1,6 +1,6 @@
 [project]
 name = "jg-energy-manager"
-version = "0.1.5"
+version = "0.1.6"
 description = "Home Assistant integration for intelligent EV charging and battery-aware energy management"
 requires-python = ">=3.12"
 

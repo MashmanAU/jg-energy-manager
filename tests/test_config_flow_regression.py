@@ -76,7 +76,7 @@ def test_custom_normalisers_are_not_exposed_as_form_schema_validators():
     """Every custom text normaliser must run after Home Assistant form parsing."""
     schemas = {
         "_charger_schema": ("_connected_states", 1),
-        "_schedule_schema": ("_peak_months", 1),
+        "_schedule_schema": ("_normalise_month_list", 1),
     }
 
     for function_name, (normaliser, expected_text_selectors) in schemas.items():
@@ -105,7 +105,7 @@ def test_config_and_options_steps_normalise_text_after_submit():
     tree = ast.parse(CONFIG_FLOW.read_text(encoding="utf-8"))
     expectations = {
         "async_step_charger": "_connected_states",
-        "async_step_schedule": "_peak_months",
+        "async_step_schedule": "_normalise_month_list",
     }
 
     for step_name, normaliser in expectations.items():
@@ -128,7 +128,7 @@ def test_config_and_options_steps_normalise_text_after_submit():
 
 def test_peak_months_normaliser_accepts_defaults_and_rejects_bad_values():
     """Schedule text remains validated after moving it out of the form schema."""
-    function = _function("_peak_months")
+    function = _function("_normalise_month_list")
     module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
 
     class Invalid(ValueError):
@@ -140,7 +140,7 @@ def test_peak_months_normaliser_accepts_defaults_and_rejects_bad_values():
         "vol": SimpleNamespace(Invalid=Invalid),
     }
     exec(compile(module, str(CONFIG_FLOW), "exec"), namespace)
-    validate = namespace["_peak_months"]
+    validate = namespace["_normalise_month_list"]
 
     assert validate("12, 1, 2, 3, 6, 7, 8, 11, 12") == "1,2,3,6,7,8,11,12"
     for invalid in ("", "0,1", "1,13", "January"):

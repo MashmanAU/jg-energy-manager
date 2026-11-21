@@ -1,8 +1,8 @@
-# Control logic - v0.1.5
+# Control logic - v0.1.6
 
 ## Normalised inputs
 
-The coordinator reads battery SOC, grid power, solar power, charger state, charger power, cumulative charger energy, the charger enable switch and the writable current number. Grid power is normalised so **positive always means import**. Battery power is normalised so **positive always means discharge**; battery power is diagnostic only in v0.1.5.
+The coordinator reads battery SOC, grid power, solar power, charger state, charger power, cumulative charger energy, the charger enable switch and the writable current number. Grid power is normalised so **positive always means import**. Battery power is normalised so **positive always means discharge**; battery power is diagnostic only in v0.1.6.
 
 Critical invalid inputs request a fail-safe stop when that option is enabled. No command is issued while Observe Only is on.
 
@@ -31,7 +31,7 @@ requested_A = clamp(requested_A, minimum_A, maximum_A)
 
 This starts as early as the configured overnight window permits and uses the lowest current that still projects completion by the ready-by time, subject to the charger's minimum current. If the calculated current exceeds the configured maximum, the controller enters `deadline_recovery` and requests maximum current.
 
-When battery SOC reaches the overnight floor, charging continues at the deadline rate. Because v0.1.5 does not write to AlphaESS, the inverter's own minimum-SOC behaviour is responsible for stopping further battery discharge and allowing grid supply for the shortfall.
+When battery SOC reaches the overnight floor, charging continues at the deadline rate. Because v0.1.6 does not write to AlphaESS, the inverter's own minimum-SOC behaviour is responsible for stopping further battery discharge and allowing grid supply for the shortfall.
 
 ## Daytime solar mode
 

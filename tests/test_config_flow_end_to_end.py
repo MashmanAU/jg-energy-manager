@@ -266,6 +266,10 @@ class ConfigEntry:
 
 
 def _install_compatibility_modules() -> None:
+    probatio = ModuleType("probatio")
+    probatio.to_field_list = lambda schema, custom_serializer=None: _serialise_schema(schema)
+    sys.modules["probatio"] = probatio
+
     vol = ModuleType("voluptuous")
     vol.Invalid = Invalid
     vol.Required = Required
@@ -283,6 +287,7 @@ def _install_compatibility_modules() -> None:
     helpers = ModuleType("homeassistant.helpers")
     config_validation = ModuleType("homeassistant.helpers.config_validation")
     config_validation.string = _string
+    config_validation.custom_serializer = lambda value: None
     selector = ModuleType("homeassistant.helpers.selector")
     for name, value in {
         "EntitySelectorConfig": EntitySelectorConfig,

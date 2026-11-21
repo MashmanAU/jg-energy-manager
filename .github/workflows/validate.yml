@@ -15,11 +15,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - run: python -m pip install --upgrade pip pytest
+          python-version: "3.14"
+      - run: python -m pip install --upgrade pip pytest "homeassistant==2026.11.1"
       - run: python scripts/validate_package.py
-      - run: python -m pytest
       - run: python scripts/build_release.py
+      - run: python -m pytest
+      - name: Prove built HACS archive with Home Assistant and Probatio
+        run: JG_REAL_HA_TEST=1 python -m pytest -q tests/test_released_archive_home_assistant.py
       - uses: actions/upload-artifact@v4
         with:
           name: release-candidates
