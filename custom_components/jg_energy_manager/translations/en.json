@@ -12,7 +12,7 @@
       },
       "energy": {
         "title": "Energy inputs",
-        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.1.7.",
+        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.2.0.",
         "data": {
           "battery_soc_entity": "Battery state of charge sensor",
           "battery_power_entity": "Battery power sensor (optional)",
@@ -50,6 +50,7 @@
         "data": {
           "target_energy_kwh": "Maximum energy per session",
           "ready_by": "Ready-by time",
+          "completion_buffer_min": "Completion buffer before ready-by time",
           "overnight_start": "Overnight charging starts",
           "peak_start": "Peak protection starts",
           "peak_end": "Peak protection ends",
@@ -62,7 +63,8 @@
           "target_energy_kwh": "Upper bound for the current plug-in session.",
           "overnight_battery_floor": "The inverter remains responsible for enforcing its own minimum SOC.",
           "daytime_battery_reserve": "Solar charging waits above this reserve, with hysteresis.",
-          "peak_months": "1-12; default matches the seasonal tariff: Jan-Mar, Jun-Aug and Nov-Dec."
+          "peak_months": "1-12; default matches the seasonal tariff: Jan-Mar, Jun-Aug and Nov-Dec.",
+          "completion_buffer_min": "The controller targets completion this many minutes before the ready-by time."
         }
       },
       "limits": {
@@ -77,13 +79,21 @@
           "solar_start_margin_w": "Solar start margin",
           "solar_run_margin_w": "Solar running margin",
           "idle_power_w": "Vehicle no-demand power threshold",
-          "max_charger_power_w": "Maximum charger power"
+          "max_charger_power_w": "Maximum charger power",
+          "battery_max_charge_power_w": "Battery maximum charge rate",
+          "grid_tolerance_w": "Grid import/export tolerance",
+          "ramp_up_step_a": "Slow-increase current step",
+          "force_charge_current_a": "Force Charge current"
         },
         "data_description": {
           "solar_start_margin_w": "Export headroom retained before starting.",
           "solar_run_margin_w": "Export headroom retained while running.",
           "idle_power_w": "Below this power for the timeout, the vehicle is treated as satisfied.",
-          "max_charger_power_w": "Hard power cap applied in addition to the maximum current."
+          "max_charger_power_w": "Hard power cap applied in addition to the maximum current.",
+          "battery_max_charge_power_w": "Maximum AlphaESS charging power reserved before sub-reserve solar overflow is offered to the EV.",
+          "grid_tolerance_w": "Small grid and battery-power deviations inside this band are ignored to prevent hunting.",
+          "ramp_up_step_a": "Maximum current increase after each increase dwell; decreases may occur faster.",
+          "force_charge_current_a": "Current requested in Force Charge mode, capped by the configured electrical limits."
         }
       },
       "control": {
@@ -95,15 +105,19 @@
           "min_command_interval_s": "Minimum command interval",
           "stop_when_disabled": "Stop charger when controller is disabled",
           "fail_safe_stop": "Stop charger when a critical input is invalid",
-          "initial_observe_only": "Default to Observe Only when no runtime state exists"
+          "initial_observe_only": "Default to Observe Only when no runtime state exists",
+          "increase_dwell_s": "Increase dwell",
+          "decrease_dwell_s": "Decrease dwell"
         },
         "data_description": {
-          "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted."
+          "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted.",
+          "increase_dwell_s": "Minimum settling time between current increases.",
+          "decrease_dwell_s": "Minimum settling time between current decreases; use 0 for immediate reductions."
         }
       },
       "secondary": {
         "title": "Future on/off charger",
-        "description": "The second charger is stored and diagnosed in v0.1.7. Automatic control logic is intentionally not enabled yet.",
+        "description": "The second charger is stored and diagnosed in v0.2.0. Automatic control logic is intentionally not enabled yet.",
         "data": {
           "secondary_enabled": "Configure second charger",
           "secondary_name": "Second charger name",
@@ -112,7 +126,7 @@
           "secondary_power_entity": "Second charger power sensor (optional)"
         },
         "data_description": {
-          "secondary_enabled": "v0.1.7 stores and diagnoses this charger but does not control it automatically."
+          "secondary_enabled": "Disabled second-charger mappings are cleared; automatic second-charger control is not enabled yet."
         }
       }
     },
@@ -177,6 +191,7 @@
         "data": {
           "target_energy_kwh": "Maximum energy per session",
           "ready_by": "Ready-by time",
+          "completion_buffer_min": "Completion buffer before ready-by time",
           "overnight_start": "Overnight charging starts",
           "peak_start": "Peak protection starts",
           "peak_end": "Peak protection ends",
@@ -189,7 +204,8 @@
           "target_energy_kwh": "Upper bound for the current plug-in session.",
           "overnight_battery_floor": "The inverter remains responsible for enforcing its own minimum SOC.",
           "daytime_battery_reserve": "Solar charging waits above this reserve, with hysteresis.",
-          "peak_months": "1-12; default matches the seasonal tariff: Jan-Mar, Jun-Aug and Nov-Dec."
+          "peak_months": "1-12; default matches the seasonal tariff: Jan-Mar, Jun-Aug and Nov-Dec.",
+          "completion_buffer_min": "The controller targets completion this many minutes before the ready-by time."
         }
       },
       "limits": {
@@ -204,13 +220,21 @@
           "solar_start_margin_w": "Solar start margin",
           "solar_run_margin_w": "Solar running margin",
           "idle_power_w": "Vehicle no-demand power threshold",
-          "max_charger_power_w": "Maximum charger power"
+          "max_charger_power_w": "Maximum charger power",
+          "battery_max_charge_power_w": "Battery maximum charge rate",
+          "grid_tolerance_w": "Grid import/export tolerance",
+          "ramp_up_step_a": "Slow-increase current step",
+          "force_charge_current_a": "Force Charge current"
         },
         "data_description": {
           "solar_start_margin_w": "Export headroom retained before starting.",
           "solar_run_margin_w": "Export headroom retained while running.",
           "idle_power_w": "Below this power for the timeout, the vehicle is treated as satisfied.",
-          "max_charger_power_w": "Hard power cap applied in addition to the maximum current."
+          "max_charger_power_w": "Hard power cap applied in addition to the maximum current.",
+          "battery_max_charge_power_w": "Maximum AlphaESS charging power reserved before sub-reserve solar overflow is offered to the EV.",
+          "grid_tolerance_w": "Small grid and battery-power deviations inside this band are ignored to prevent hunting.",
+          "ramp_up_step_a": "Maximum current increase after each increase dwell; decreases may occur faster.",
+          "force_charge_current_a": "Current requested in Force Charge mode, capped by the configured electrical limits."
         }
       },
       "control": {
@@ -222,10 +246,14 @@
           "min_command_interval_s": "Minimum command interval",
           "stop_when_disabled": "Stop charger when controller is disabled",
           "fail_safe_stop": "Stop charger when a critical input is invalid",
-          "initial_observe_only": "Default to Observe Only when no runtime state exists"
+          "initial_observe_only": "Default to Observe Only when no runtime state exists",
+          "increase_dwell_s": "Increase dwell",
+          "decrease_dwell_s": "Decrease dwell"
         },
         "data_description": {
-          "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted."
+          "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted.",
+          "increase_dwell_s": "Minimum settling time between current increases.",
+          "decrease_dwell_s": "Minimum settling time between current decreases; use 0 for immediate reductions."
         }
       },
       "secondary": {
@@ -238,7 +266,7 @@
           "secondary_power_entity": "Second charger power sensor (optional)"
         },
         "data_description": {
-          "secondary_enabled": "v0.1.7 stores and diagnoses this charger but does not control it automatically."
+          "secondary_enabled": "Disabled second-charger mappings are cleared; automatic second-charger control is not enabled yet."
         }
       }
     },
@@ -326,11 +354,12 @@
     },
     "select": {
       "override": {
-        "name": "Override",
+        "name": "Operating mode",
         "state": {
           "automatic": "Automatic",
-          "force_off": "Force off",
-          "force_max": "Force maximum"
+          "force_charge": "Force Charge",
+          "solar_only": "Solar Only",
+          "off": "Off"
         }
       }
     },

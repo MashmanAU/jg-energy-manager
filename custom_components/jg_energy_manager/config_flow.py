@@ -126,6 +126,16 @@ def _limits_storage_values(user_input: dict[str, Any]) -> dict[str, Any]:
     return {**user_input, CONF_PHASES: phase_map[selected]}  # noqa: F405
 
 
+def _secondary_storage_values(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Clear dormant second-charger mappings whenever the feature is disabled."""
+    values = dict(user_input)
+    if not values.get(CONF_SECONDARY_ENABLED):  # noqa: F405
+        values[CONF_SECONDARY_SWITCH_ENTITY] = None  # noqa: F405
+        values[CONF_SECONDARY_STATUS_ENTITY] = None  # noqa: F405
+        values[CONF_SECONDARY_POWER_ENTITY] = None  # noqa: F405
+    return values
+
+
 def _energy_schema(defaults: dict[str, Any]) -> vol.Schema:
     return _checked_schema("energy", vol.Schema(
         {
@@ -182,6 +192,7 @@ def _schedule_schema(defaults: dict[str, Any]) -> vol.Schema:
         {
             vol.Required(CONF_TARGET_ENERGY_KWH, default=defaults[CONF_TARGET_ENERGY_KWH]): _number(0.5, 100, 0.5, "kWh"),  # noqa: E501,F405
             vol.Required(CONF_READY_BY, default=defaults[CONF_READY_BY]): _time(),  # noqa: F405
+            vol.Required(CONF_COMPLETION_BUFFER_MIN, default=defaults[CONF_COMPLETION_BUFFER_MIN]): _number(0, 180, 5, "min"),  # noqa: E501,F405
             vol.Required(CONF_OVERNIGHT_START, default=defaults[CONF_OVERNIGHT_START]): _time(),  # noqa: E501,F405
             vol.Required(CONF_PEAK_START, default=defaults[CONF_PEAK_START]): _time(),  # noqa: F405
             vol.Required(CONF_PEAK_END, default=defaults[CONF_PEAK_END]): _time(),  # noqa: F405
@@ -201,7 +212,11 @@ def _limits_schema(defaults: dict[str, Any]) -> vol.Schema:
             CONF_MIN_CURRENT_A,  # noqa: F405
             CONF_MAX_CURRENT_A,  # noqa: F405
             CONF_MAX_CHARGER_POWER_W,  # noqa: F405
+            CONF_BATTERY_MAX_CHARGE_POWER_W,  # noqa: F405
+            CONF_GRID_TOLERANCE_W,  # noqa: F405
             CONF_CURRENT_STEP_A,  # noqa: F405
+            CONF_RAMP_UP_STEP_A,  # noqa: F405
+            CONF_FORCE_CHARGE_CURRENT_A,  # noqa: F405
             CONF_SUPPLY_VOLTAGE,  # noqa: F405
             CONF_PHASES,  # noqa: F405
             CONF_CHARGING_EFFICIENCY,  # noqa: F405
@@ -218,7 +233,11 @@ def _limits_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_MIN_CURRENT_A, default=defaults[CONF_MIN_CURRENT_A]): _number(1, 32, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_MAX_CURRENT_A, default=defaults[CONF_MAX_CURRENT_A]): _number(1, 80, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_MAX_CHARGER_POWER_W, default=defaults[CONF_MAX_CHARGER_POWER_W]): _number(500, 22000, 100, "W"),  # noqa: E501,F405
+            vol.Required(CONF_BATTERY_MAX_CHARGE_POWER_W, default=defaults[CONF_BATTERY_MAX_CHARGE_POWER_W]): _number(0, 20000, 100, "W"),  # noqa: E501,F405
+            vol.Required(CONF_GRID_TOLERANCE_W, default=defaults[CONF_GRID_TOLERANCE_W]): _number(0, 2000, 10, "W"),  # noqa: E501,F405
             vol.Required(CONF_CURRENT_STEP_A, default=defaults[CONF_CURRENT_STEP_A]): _number(0.1, 5, 0.1, "A"),  # noqa: E501,F405
+            vol.Required(CONF_RAMP_UP_STEP_A, default=defaults[CONF_RAMP_UP_STEP_A]): _number(0.1, 10, 0.1, "A"),  # noqa: E501,F405
+            vol.Required(CONF_FORCE_CHARGE_CURRENT_A, default=defaults[CONF_FORCE_CHARGE_CURRENT_A]): _number(1, 80, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_SUPPLY_VOLTAGE, default=defaults[CONF_SUPPLY_VOLTAGE]): _number(100, 260, 1, "V"),  # noqa: E501,F405
             vol.Required(CONF_PHASES, default=defaults[CONF_PHASES]): selector.SelectSelector(  # noqa: F405
                 selector.SelectSelectorConfig(
@@ -247,6 +266,8 @@ def _control_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_NO_DEMAND_TIMEOUT_S, default=defaults[CONF_NO_DEMAND_TIMEOUT_S]): _number(30, 1800, 30, "s"),  # noqa: E501,F405
             vol.Required(CONF_COMMAND_DEADBAND_A, default=defaults[CONF_COMMAND_DEADBAND_A]): _number(0, 5, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_MIN_COMMAND_INTERVAL_S, default=defaults[CONF_MIN_COMMAND_INTERVAL_S]): _number(5, 300, 5, "s"),  # noqa: E501,F405
+            vol.Required(CONF_INCREASE_DWELL_S, default=defaults[CONF_INCREASE_DWELL_S]): _number(0, 900, 5, "s"),  # noqa: E501,F405
+            vol.Required(CONF_DECREASE_DWELL_S, default=defaults[CONF_DECREASE_DWELL_S]): _number(0, 300, 5, "s"),  # noqa: E501,F405
             vol.Required(CONF_STOP_WHEN_DISABLED, default=defaults[CONF_STOP_WHEN_DISABLED]): _boolean(),  # noqa: F405
             vol.Required(CONF_FAIL_SAFE_STOP, default=defaults[CONF_FAIL_SAFE_STOP]): _boolean(),  # noqa: F405
             vol.Required(CONF_INITIAL_OBSERVE_ONLY, default=defaults[CONF_INITIAL_OBSERVE_ONLY]): _boolean(),  # noqa: F405
@@ -353,6 +374,7 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
 
     async def async_step_secondary(self, user_input=None) -> ConfigFlowResult:
         if user_input is not None:
+            user_input = _secondary_storage_values(user_input)
             self._data.update(user_input)
             if self._data[CONF_SECONDARY_ENABLED] and not self._data.get(CONF_SECONDARY_SWITCH_ENTITY):  # noqa: E501,F405
                 return self.async_show_form(
@@ -392,11 +414,16 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
 
     @property
     def current(self) -> dict[str, Any]:
-        return {
+        current = {
             **DEFAULTS,  # noqa: F405
             **self.config_entry.data,
             **self.config_entry.options,
         }
+        if not current.get(CONF_SECONDARY_ENABLED):  # noqa: F405
+            current.pop(CONF_SECONDARY_SWITCH_ENTITY, None)  # noqa: F405
+            current.pop(CONF_SECONDARY_STATUS_ENTITY, None)  # noqa: F405
+            current.pop(CONF_SECONDARY_POWER_ENTITY, None)  # noqa: F405
+        return current
 
     async def async_step_init(self, user_input=None) -> ConfigFlowResult:
         return self.async_show_menu(
@@ -480,4 +507,6 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
                 data_schema=self.add_suggested_values_to_schema(_secondary_schema(self.current), user_input),
                 errors={"base": "secondary_switch_required"},
             )
+        if user_input is not None:
+            user_input = _secondary_storage_values(user_input)
         return await self._save_step("secondary", user_input, _secondary_schema(self.current))

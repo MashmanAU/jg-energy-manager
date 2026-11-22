@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "jg_energy_manager"
 NAME: Final = "JG Energy Manager"
-VERSION: Final = "0.1.7"
+VERSION: Final = "0.2.0"
 PLATFORMS: Final = ["binary_sensor", "button", "select", "sensor", "switch"]
 
 CONF_NAME: Final = "name"
@@ -33,10 +33,15 @@ CONF_PEAK_MONTHS: Final = "peak_months"
 CONF_OVERNIGHT_BATTERY_FLOOR: Final = "overnight_battery_floor"
 CONF_DAYTIME_BATTERY_RESERVE: Final = "daytime_battery_reserve"
 CONF_SOC_HYSTERESIS: Final = "soc_hysteresis"
+CONF_COMPLETION_BUFFER_MIN: Final = "completion_buffer_min"
 CONF_MIN_CURRENT_A: Final = "min_current_a"
 CONF_MAX_CURRENT_A: Final = "max_current_a"
 CONF_MAX_CHARGER_POWER_W: Final = "max_charger_power_w"
+CONF_BATTERY_MAX_CHARGE_POWER_W: Final = "battery_max_charge_power_w"
+CONF_GRID_TOLERANCE_W: Final = "grid_tolerance_w"
 CONF_CURRENT_STEP_A: Final = "current_step_a"
+CONF_RAMP_UP_STEP_A: Final = "ramp_up_step_a"
+CONF_FORCE_CHARGE_CURRENT_A: Final = "force_charge_current_a"
 CONF_SUPPLY_VOLTAGE: Final = "supply_voltage"
 CONF_PHASES: Final = "phases"
 CONF_CHARGING_EFFICIENCY: Final = "charging_efficiency"
@@ -47,6 +52,8 @@ CONF_NO_DEMAND_TIMEOUT_S: Final = "no_demand_timeout_s"
 CONF_CONTROL_INTERVAL_S: Final = "control_interval_s"
 CONF_COMMAND_DEADBAND_A: Final = "command_deadband_a"
 CONF_MIN_COMMAND_INTERVAL_S: Final = "min_command_interval_s"
+CONF_INCREASE_DWELL_S: Final = "increase_dwell_s"
+CONF_DECREASE_DWELL_S: Final = "decrease_dwell_s"
 CONF_STOP_WHEN_DISABLED: Final = "stop_when_disabled"
 CONF_FAIL_SAFE_STOP: Final = "fail_safe_stop"
 CONF_INITIAL_OBSERVE_ONLY: Final = "initial_observe_only"
@@ -64,10 +71,17 @@ BATTERY_POSITIVE_CHARGE: Final = "positive_charge"
 PHASE_OPTION_SINGLE: Final = "single_phase"
 PHASE_OPTION_THREE: Final = "three_phase"
 
-OVERRIDE_AUTOMATIC: Final = "automatic"
+MODE_AUTOMATIC: Final = "automatic"
+MODE_FORCE_CHARGE: Final = "force_charge"
+MODE_SOLAR_ONLY: Final = "solar_only"
+MODE_OFF: Final = "off"
+MODE_OPTIONS: Final = [MODE_AUTOMATIC, MODE_FORCE_CHARGE, MODE_SOLAR_ONLY, MODE_OFF]
+
+# Legacy runtime values are retained only for state migration.
+OVERRIDE_AUTOMATIC: Final = MODE_AUTOMATIC
 OVERRIDE_FORCE_OFF: Final = "force_off"
 OVERRIDE_FORCE_MAX: Final = "force_max"
-OVERRIDE_OPTIONS: Final = [OVERRIDE_AUTOMATIC, OVERRIDE_FORCE_OFF, OVERRIDE_FORCE_MAX]
+OVERRIDE_OPTIONS: Final = MODE_OPTIONS
 
 DEFAULTS: Final = {
     CONF_NAME: NAME,
@@ -84,10 +98,15 @@ DEFAULTS: Final = {
     CONF_OVERNIGHT_BATTERY_FLOOR: 10.0,
     CONF_DAYTIME_BATTERY_RESERVE: 45.0,
     CONF_SOC_HYSTERESIS: 2.0,
+    CONF_COMPLETION_BUFFER_MIN: 30,
     CONF_MIN_CURRENT_A: 6.0,
     CONF_MAX_CURRENT_A: 32.0,
     CONF_MAX_CHARGER_POWER_W: 7360.0,
+    CONF_BATTERY_MAX_CHARGE_POWER_W: 5000.0,
+    CONF_GRID_TOLERANCE_W: 100.0,
     CONF_CURRENT_STEP_A: 0.1,
+    CONF_RAMP_UP_STEP_A: 1.0,
+    CONF_FORCE_CHARGE_CURRENT_A: 32.0,
     CONF_SUPPLY_VOLTAGE: 230.0,
     CONF_PHASES: 1,
     CONF_CHARGING_EFFICIENCY: 0.90,
@@ -98,6 +117,8 @@ DEFAULTS: Final = {
     CONF_CONTROL_INTERVAL_S: 30,
     CONF_COMMAND_DEADBAND_A: 0.2,
     CONF_MIN_COMMAND_INTERVAL_S: 30,
+    CONF_INCREASE_DWELL_S: 120,
+    CONF_DECREASE_DWELL_S: 0,
     CONF_STOP_WHEN_DISABLED: True,
     CONF_FAIL_SAFE_STOP: True,
     CONF_INITIAL_OBSERVE_ONLY: True,

@@ -1,59 +1,34 @@
-# Control logic - v0.1.7
+# Control logic - v0.2.0
 
-## Normalised inputs
+## Safety and session boundaries
 
-The coordinator reads battery SOC, grid power, solar power, charger state, charger power, cumulative charger energy, the charger enable switch and the writable current number. Grid power is normalised so **positive always means import**. Battery power is normalised so **positive always means discharge**; battery power is diagnostic only in v0.1.7.
+The energy target is a maximum per plug-in session, not a mandatory vehicle requirement. Disconnect, reset, invalid input and vehicle no-demand/full handling remain fail-safe. When the vehicle stops accepting power before the allowance is used, all deadline recovery stops. Observe Only continues calculations and diagnostics but sends no commands.
 
-Critical invalid inputs request a fail-safe stop when that option is enabled. No command is issued while Observe Only is on.
+## Buffered deadline
 
-## Session energy
+The operational deadline is the ready-by time minus the configurable completion buffer. The planner continuously checks maximum physical deliverability. It reports `impossible_target` when maximum current cannot deliver the remaining allowance by that deadline. It reports `deadline_recovery` when grid-supported charging must begin now to retain feasibility.
 
-A new session begins on the disconnected-to-connected transition. The cumulative charger-energy value becomes the baseline. Delivered energy is:
+Peak charging remains stopped when the remaining allowance still fits after peak. Peak import is requested only when deferring until peak end would make the buffered deadline infeasible.
 
-```text
-max(cumulative energy - session baseline, integrated charger power)
-```
+## Post-peak and overnight battery policy
 
-Power integration is a fallback and is capped to a five-minute sample gap. Runtime state is stored every five minutes and on control changes, allowing a Home Assistant restart to retain the current session.
+After peak, while battery SOC is above the overnight floor, the controller starts at minimum current and increases by the configured ramp step after each increase dwell. Grid-import feedback causes a fast reduction or pause, allowing house load to take priority while finding the highest stable battery-supported EV rate.
 
-The configured target is a **maximum session delivery**, not a claim that the car needs that energy. If the charger was requested on but power remains below the idle threshold for the no-demand timeout, the session becomes `vehicle_satisfied` and the controller stops. Unplugging resets that latch.
+At the overnight floor, the remaining allowance is spread over all time to the buffered deadline. The lowest continuous charger rate that preserves feasibility is requested, subject to minimum current, maximum current and charger power limits.
 
-## Overnight deadline controller
+## Daytime battery priority
 
-Within the overnight window:
+Below the daytime reserve, the battery receives priority up to the configured maximum battery charge rate. The EV receives only genuine overflow inferred from solar, grid and battery power; it is reduced or stopped on grid import or battery discharge.
 
-```text
-remaining_kWh = max(0, target_kWh - delivered_kWh)
-required_input_W = remaining_kWh * 1000 / (hours_to_deadline * efficiency)
-requested_A = ceil_to_step(required_input_W / (voltage * phases))
-requested_A = clamp(requested_A, minimum_A, maximum_A)
-```
+At or above reserve, EV charging has priority over further battery charging. Current battery charging may be redirected to the EV, but grid import and battery discharge reduce the EV target. Increases are deliberately slow; decreases are fast.
 
-This starts as early as the configured overnight window permits and uses the lowest current that still projects completion by the ready-by time, subject to the charger's minimum current. If the calculated current exceeds the configured maximum, the controller enters `deadline_recovery` and requests maximum current.
+## Operating modes
 
-When battery SOC reaches the overnight floor, charging continues at the deadline rate. Because v0.1.7 does not write to AlphaESS, the inverter's own minimum-SOC behaviour is responsible for stopping further battery discharge and allowing grid supply for the shortfall.
+- **Automatic** - complete battery, solar, peak and buffered-deadline policy.
+- **Force Charge** - configured force current, bounded by electrical limits and session/full safety.
+- **Solar Only** - genuine no-grid, no-battery-discharge charging only; deadline recovery is disabled.
+- **Off** - stop charging.
 
-## Daytime solar mode
+## Explicitly excluded from v0.2.0
 
-Daytime start is gated by battery SOC. When off, SOC must exceed `reserve + hysteresis`; while running, it may continue down to `reserve - hysteresis`.
-
-Stable power headroom is calculated from the grid meter and present EV load:
-
-```text
-available_W = max(0, charger_power_W - grid_import_W - margin_W)
-requested_A = floor_to_step(available_W / (voltage * phases))
-```
-
-The larger start margin is used when the charger is off; the smaller run margin is used after it starts. If available power is below the minimum charger power, charging stops. This gives export-led control and avoids treating battery discharge as free solar headroom.
-
-## Peak protection and overrides
-
-The 3-9 pm window has priority over automatic overnight/daytime logic in the configured months. The default months (Jan-Mar, Jun-Aug and Nov-Dec) match the supplied seasonal tariff. It stops charging. `force_max` is an explicit user override and therefore takes priority over peak protection; `force_off` always stops.
-
-## Command shaping
-
-- Current is written before the charger is enabled.
-- Current changes smaller than the current deadband are ignored.
-- The minimum command interval prevents rapid setpoint/start calls; stop commands are never delayed.
-- The enable switch is only called when its state needs to change.
-- Observe Only suppresses all actuator calls while retaining identical calculations and diagnostics.
+There is no site import-limit controller, AlphaESS write control or automatic second-charger actuation. Disabled second-charger mappings are cleared.

@@ -312,3 +312,30 @@ def test_initial_and_options_limits_steps_store_integer_phases():
         assert len(call.args) == 2
         assert isinstance(call.args[1], ast.Name)
         assert call.args[1].id == "current"
+
+
+def test_disabled_secondary_charger_clears_all_runtime_mappings():
+    """Turning the reserved second charger off must override stale mappings."""
+    function = _function("_secondary_storage_values")
+    namespace: dict[str, Any] = {
+        "Any": Any,
+        "CONF_SECONDARY_ENABLED": "secondary_enabled",
+        "CONF_SECONDARY_SWITCH_ENTITY": "secondary_switch_entity",
+        "CONF_SECONDARY_STATUS_ENTITY": "secondary_status_entity",
+        "CONF_SECONDARY_POWER_ENTITY": "secondary_power_entity",
+    }
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    exec(compile(module, str(CONFIG_FLOW), "exec"), namespace)
+    normalise = namespace["_secondary_storage_values"]
+
+    values = normalise(
+        {
+            "secondary_enabled": False,
+            "secondary_switch_entity": "switch.old",
+            "secondary_status_entity": "sensor.old_status",
+            "secondary_power_entity": "sensor.old_power",
+        }
+    )
+    assert values["secondary_switch_entity"] is None
+    assert values["secondary_status_entity"] is None
+    assert values["secondary_power_entity"] is None

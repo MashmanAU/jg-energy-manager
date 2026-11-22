@@ -29,6 +29,12 @@ class RuntimeState:
         for field_name in state.__dataclass_fields__:
             if field_name in data:
                 setattr(state, field_name, data[field_name])
+        state.override = {
+            "force_max": "force_charge",
+            "force_off": "off",
+        }.get(state.override, state.override)
+        if state.override not in {"automatic", "force_charge", "solar_only", "off"}:
+            state.override = "automatic"
         return state
 
     def as_dict(self) -> dict[str, Any]:

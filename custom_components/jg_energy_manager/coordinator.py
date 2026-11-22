@@ -16,6 +16,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     BATTERY_POSITIVE_CHARGE,
     CONF_BATTERY_POWER_ENTITY,
+    CONF_BATTERY_MAX_CHARGE_POWER_W,
     CONF_BATTERY_POWER_SIGN,
     CONF_BATTERY_SOC_ENTITY,
     CONF_CHARGER_CURRENT_ENTITY,
@@ -24,16 +25,21 @@ from .const import (
     CONF_CHARGER_POWER_ENTITY,
     CONF_CHARGER_STATUS_ENTITY,
     CONF_CHARGING_EFFICIENCY,
+    CONF_COMPLETION_BUFFER_MIN,
     CONF_COMMAND_DEADBAND_A,
     CONF_CONNECTED_STATES,
     CONF_CONTROL_INTERVAL_S,
     CONF_CURRENT_STEP_A,
+    CONF_DECREASE_DWELL_S,
     CONF_DAYTIME_BATTERY_RESERVE,
     CONF_FAIL_SAFE_STOP,
+    CONF_FORCE_CHARGE_CURRENT_A,
     CONF_GRID_POWER_ENTITY,
     CONF_GRID_POWER_SIGN,
+    CONF_GRID_TOLERANCE_W,
     CONF_IDLE_POWER_W,
     CONF_INITIAL_OBSERVE_ONLY,
+    CONF_INCREASE_DWELL_S,
     CONF_MAX_CURRENT_A,
     CONF_MAX_CHARGER_POWER_W,
     CONF_MIN_COMMAND_INTERVAL_S,
@@ -46,6 +52,7 @@ from .const import (
     CONF_PEAK_MONTHS,
     CONF_PEAK_START,
     CONF_PHASES,
+    CONF_RAMP_UP_STEP_A,
     CONF_READY_BY,
     CONF_SECONDARY_ENABLED,
     CONF_SECONDARY_NAME,
@@ -62,7 +69,6 @@ from .const import (
     DEFAULTS,
     DOMAIN,
     GRID_NEGATIVE_IMPORT,
-    OVERRIDE_AUTOMATIC,
     STORAGE_KEY_PREFIX,
     STORAGE_VERSION,
 )
@@ -122,6 +128,8 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_command_at: datetime | None = None
         self._last_saved_at: datetime | None = None
         self._last_written_current: float | None = None
+        self._last_increase_at: datetime | None = None
+        self._last_decrease_at: datetime | None = None
 
     async def async_load_runtime(self) -> None:
         stored = await self.store.async_load()
@@ -137,6 +145,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return PlannerSettings(
             target_energy_kwh=float(s[CONF_TARGET_ENERGY_KWH]),
             ready_by=_parse_time(s[CONF_READY_BY]),
+            completion_buffer_min=int(s[CONF_COMPLETION_BUFFER_MIN]),
             overnight_start=_parse_time(s[CONF_OVERNIGHT_START]),
             peak_start=_parse_time(s[CONF_PEAK_START]),
             peak_end=_parse_time(s[CONF_PEAK_END]),
@@ -151,12 +160,17 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             min_current_a=float(s[CONF_MIN_CURRENT_A]),
             max_current_a=float(s[CONF_MAX_CURRENT_A]),
             max_charger_power_w=float(s[CONF_MAX_CHARGER_POWER_W]),
+            battery_max_charge_power_w=float(s[CONF_BATTERY_MAX_CHARGE_POWER_W]),
+            grid_tolerance_w=float(s[CONF_GRID_TOLERANCE_W]),
             current_step_a=float(s[CONF_CURRENT_STEP_A]),
+            ramp_up_step_a=float(s[CONF_RAMP_UP_STEP_A]),
+            force_charge_current_a=float(s[CONF_FORCE_CHARGE_CURRENT_A]),
             supply_voltage=float(s[CONF_SUPPLY_VOLTAGE]),
             phases=int(s[CONF_PHASES]),
             charging_efficiency=float(s[CONF_CHARGING_EFFICIENCY]),
             solar_start_margin_w=float(s[CONF_SOLAR_START_MARGIN_W]),
             solar_run_margin_w=float(s[CONF_SOLAR_RUN_MARGIN_W]),
+            control_interval_s=int(s[CONF_CONTROL_INTERVAL_S]),
         )
 
     def _state(self, key: str) -> State | None:
@@ -228,14 +242,26 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 controller_enabled=self.runtime.controller_enabled,
                 connected=connected,
                 battery_soc=battery_soc or 0.0,
+                battery_power_w=battery_discharge or 0.0,
                 grid_import_w=grid_import or 0.0,
                 solar_power_w=solar_power or 0.0,
                 charger_power_w=charger_power or 0.0,
+                charger_current_a=current_state or 0.0,
                 session_energy_kwh=self.runtime.session_energy_kwh,
                 charger_enabled=charger_enabled,
                 vehicle_satisfied=self.runtime.vehicle_satisfied,
-                override=self.runtime.override,
+                mode=self.runtime.override,
                 inputs_valid=inputs_valid,
+                increase_allowed=(
+                    self._last_increase_at is None
+                    or (now - self._last_increase_at).total_seconds()
+                    >= float(self.settings[CONF_INCREASE_DWELL_S])
+                ),
+                decrease_allowed=(
+                    self._last_decrease_at is None
+                    or (now - self._last_decrease_at).total_seconds()
+                    >= float(self.settings[CONF_DECREASE_DWELL_S])
+                ),
             ),
             self.planner_settings(),
         )
@@ -248,14 +274,19 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         await self._async_maybe_save(now)
 
+        secondary_configured = bool(self.settings.get(CONF_SECONDARY_ENABLED))
         secondary = {
-            "configured": bool(self.settings.get(CONF_SECONDARY_ENABLED)),
+            "configured": secondary_configured,
             "name": self.settings.get(CONF_SECONDARY_NAME),
-            "switch_entity": self.settings.get(CONF_SECONDARY_SWITCH_ENTITY),
-            "status": self._state(CONF_SECONDARY_STATUS_ENTITY).state
-            if self._state(CONF_SECONDARY_STATUS_ENTITY)
+            "switch_entity": self.settings.get(CONF_SECONDARY_SWITCH_ENTITY)
+            if secondary_configured
             else None,
-            "power_w": _float_state(self._state(CONF_SECONDARY_POWER_ENTITY)),
+            "status": self._state(CONF_SECONDARY_STATUS_ENTITY).state
+            if secondary_configured and self._state(CONF_SECONDARY_STATUS_ENTITY)
+            else None,
+            "power_w": _float_state(self._state(CONF_SECONDARY_POWER_ENTITY))
+            if secondary_configured
+            else None,
             "control_state": "reserved_for_future_logic",
         }
         return {
@@ -360,16 +391,23 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         # Stop commands are never delayed by command-rate limiting. This keeps
-        # peak entry, fail-safe input loss and Force Off fail-safe by default.
+        # peak entry, fail-safe input loss and Off mode fail-safe by default.
         if not decision.should_enable:
             if charger_enabled:
                 await self._async_turn(self.settings[CONF_CHARGER_ENABLE_ENTITY], False)
                 self._last_command_at = now
             return
 
-        if self._last_command_at is not None and (
-            now - self._last_command_at
-        ).total_seconds() < float(self.settings[CONF_MIN_COMMAND_INTERVAL_S]):
+        decreasing = bool(
+            current_state is not None
+            and decision.requested_current_a < current_state
+        )
+        if (
+            not decreasing
+            and self._last_command_at is not None
+            and (now - self._last_command_at).total_seconds()
+            < float(self.settings[CONF_MIN_COMMAND_INTERVAL_S])
+        ):
             return
 
         command_sent = False
@@ -381,6 +419,10 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     decision.requested_current_a,
                 )
                 self._last_written_current = decision.requested_current_a
+                if current_state is not None and decision.requested_current_a < current_state:
+                    self._last_decrease_at = now
+                else:
+                    self._last_increase_at = now
                 command_sent = True
             if not charger_enabled:
                 await self._async_turn(self.settings[CONF_CHARGER_ENABLE_ENTITY], True)

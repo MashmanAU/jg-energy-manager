@@ -4,14 +4,14 @@ param(
     [string]$Remote = "origin",
     [string]$Branch = "main",
     [string]$RemoteUrl = "https://github.com/MashmanAU/jg-energy-manager.git",
-    [string]$CommitMessage = "Release v0.1.7",
+    [string]$CommitMessage = "Release v0.2.0",
     [switch]$NoPush,
     [switch]$ForceTag
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$ExpectedVersion = "0.1.7"
+$ExpectedVersion = "0.2.0"
 
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan

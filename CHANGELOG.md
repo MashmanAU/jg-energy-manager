@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 - 2026-11-22
+
+- Added post-peak battery-following control that ramps toward the highest stable EV rate without sustained grid import and reduces quickly around house loads.
+- Added buffered-deadline pacing at the overnight battery floor, explicit deadline recovery and impossible-target diagnostics, including peak charging only when physically required.
+- Kept the configured session energy as a maximum allowance and retained unused battery energy when the vehicle becomes full early.
+- Added battery-priority daytime overflow capture below reserve and EV-priority no-grid solar charging above reserve using grid and battery power feedback.
+- Added Automatic, Force Charge, Solar Only and Off operating modes, with configurable Force Charge current.
+- Added battery maximum charge rate, grid tolerance, ramp-up step, increase/decrease dwell and completion-buffer settings to the Home Assistant UI.
+- Removed the invalid measurement state class from Maximum Energy Remaining and clear dormant second-charger mappings when disabled.
+- Added deterministic ten-minute simulations for the agreed 30 kWh/high-SOC, 30 kWh/low-SOC and 10 kWh early-full scenarios.
+- Preserved the released-HACS-archive Home Assistant 2026.11.1/Probatio config-flow gate and all v0.1.7 compatibility fixes.
+
 ## 0.1.7 - 2026-11-22
 
 - Fixed the Home Assistant 2026.11.1/Probatio 0.13.0 Limits failure caused by passing `unit_of_measurement=None` to `NumberSelectorConfig` for charging efficiency.

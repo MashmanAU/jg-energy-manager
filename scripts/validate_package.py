@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 DOMAIN_DIR = ROOT / "custom_components" / "jg_energy_manager"
-EXPECTED_VERSION = "0.1.7"
+EXPECTED_VERSION = "0.2.0"
 
 
 def fail(message: str) -> None:

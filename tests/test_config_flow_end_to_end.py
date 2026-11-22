@@ -460,6 +460,14 @@ def test_first_time_setup_renders_and_advances_through_every_form():
     assert isinstance(result["data"]["phases"], int)
     assert result["data"]["connected_states"] == "B,C"
     assert result["data"]["peak_months"] == "1,2,3,6,7,8,11,12"
+    assert result["data"]["completion_buffer_min"] == 30
+    assert result["data"]["battery_max_charge_power_w"] == 5000.0
+    assert result["data"]["grid_tolerance_w"] == 100.0
+    assert result["data"]["ramp_up_step_a"] == 1.0
+    assert result["data"]["force_charge_current_a"] == 32.0
+    assert result["data"]["increase_dwell_s"] == 120
+    assert result["data"]["decrease_dwell_s"] == 0
+    assert result["data"]["secondary_switch_entity"] is None
 
 
 def test_limits_options_flow_renders_and_stores_integer_phase_value():
