@@ -1,18 +1,19 @@
-# v0.2.0 requirement traceability
+# v0.3.0 requirement traceability
 
-| Requirement | Implementation |
+| Requirement | Implementation / gate |
 |---|---|
-| Post-peak battery-supported maximum | Grid-feedback ramp with slow increases and fast import-driven decreases |
-| Floor-to-deadline spreading | Buffered deadline and continuous required-average calculation |
-| Maximum allowance / early full | Persistent session accounting and no-demand/full stop before mandatory recovery |
-| Deadline feasibility | Peak-aware recovery, impossible-target state and diagnostic reasons |
-| Battery-priority overflow | Grid + battery feedback and configured battery maximum charge rate |
-| EV priority above reserve | Battery-charge reallocation with no grid import or battery discharge |
-| Four operating modes | Automatic, Force Charge, Solar Only and Off |
-| Observe Only | All calculations retained; actuator calls suppressed |
-| Session and fail-safe handling | Disconnect/reset/full/input-loss handling retained |
-| Exclusions | No site import limit, AlphaESS writes or active second charger |
-| Metadata correction | Maximum Energy Remaining has no measurement state class |
-| Configurability | All new policy values available in Config Flow and Options Flow |
-| Scenario tests | Deterministic ten-minute A, B and C simulations |
-| Release compatibility | Built HACS archive tested with Home Assistant 2026.11.1 and Probatio |
+| Preserve post-peak, floor pacing, deadline recovery and maximum allowance policy | Existing deterministic planner and A/B/C ten-minute simulations retained |
+| Peak solar-overflow precedence | Genuine no-grid solar branch evaluated before peak stop; dedicated regression test |
+| Observational Available Solar vs Calculated Power | Separate observed power-balance excess and policy EV request fields/tests |
+| Accurate connection boundary | Rising edge establishes baseline and skips retrospective integration |
+| Restart/stale boundary | Stale intervals are never integrated; valid cumulative meter remains authoritative |
+| Meter outage/recovery/rollback | Bounded integration fallback and no-jump rebase tests |
+| Charging-state early-full detection | Configured `charging_states`, prior-charge evidence, low-demand timeout and freeze tests |
+| Last-session semantics | Persistent energy, unused allowance, start/end, satisfaction and end reason |
+| Migration-safe metadata | Stable unique IDs; remaining allowance uses measurement state class without incompatible energy device class |
+| Recorder churn | Rounded public current/power/energy values, minute completion and frozen satisfied energy |
+| Resilient live actuation | Service exception containment, acknowledgement, bounded backoff, no enable-before-current-ack and failed-stop notification |
+| Actuator diagnostics | Problem binary sensor, last acknowledged current/result/error and expanded redacted diagnostics |
+| Config flow compatibility | v2 migration, charging-state field, Probatio serialisation and released HACS archive flow |
+| Charger 2 exclusion | `parked_no_active_control`; no second actuator path |
+| Release compatibility | Normal suite, metadata checks, actuator/session tests, policy simulations and real Home Assistant released-archive test |

@@ -83,6 +83,14 @@ def _connected_states(value: Any) -> str:
     return ",".join(states)
 
 
+def _charging_states(value: Any) -> str:
+    """Normalise charger states that positively confirm active charging."""
+    try:
+        return _connected_states(value)
+    except vol.Invalid as err:
+        raise vol.Invalid("Enter at least one charging state") from err
+
+
 def _number(minimum: float, maximum: float, step: float, unit: str | None = None):
     config: dict[str, Any] = {
         "min": minimum,
@@ -182,6 +190,9 @@ def _charger_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_CHARGER_CURRENT_ENTITY): _entity(),  # noqa: F405
             vol.Required(  # noqa: F405
                 CONF_CONNECTED_STATES, default=defaults[CONF_CONNECTED_STATES]  # noqa: F405
+            ): selector.TextSelector(),
+            vol.Required(  # noqa: F405
+                CONF_CHARGING_STATES, default=defaults[CONF_CHARGING_STATES]  # noqa: F405
             ): selector.TextSelector(),
         }
     ))
@@ -290,7 +301,7 @@ def _secondary_schema(defaults: dict[str, Any]) -> vol.Schema:
 class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F405
     """Configure a JG Energy Manager instance."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         self._data: dict[str, Any] = dict(DEFAULTS)  # noqa: F405
@@ -324,12 +335,15 @@ class JGEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # noqa: F40
                 user_input[CONF_CONNECTED_STATES] = _connected_states(  # noqa: F405
                     user_input[CONF_CONNECTED_STATES]  # noqa: F405
                 )
+                user_input[CONF_CHARGING_STATES] = _charging_states(  # noqa: F405
+                    user_input[CONF_CHARGING_STATES]  # noqa: F405
+                )
             except vol.Invalid:
                 values = {**self._data, **user_input}
                 return self.async_show_form(
                     step_id="charger",
                     data_schema=_charger_schema(values),
-                    errors={CONF_CONNECTED_STATES: "invalid_connected_states"},  # noqa: F405
+                    errors={"base": "invalid_charger_states"},
                 )
         return await self._next("charger", user_input, _charger_schema(self._data), self.async_step_schedule)
 
@@ -449,6 +463,9 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
                 user_input[CONF_CONNECTED_STATES] = _connected_states(  # noqa: F405
                     user_input[CONF_CONNECTED_STATES]  # noqa: F405
                 )
+                user_input[CONF_CHARGING_STATES] = _charging_states(  # noqa: F405
+                    user_input[CONF_CHARGING_STATES]  # noqa: F405
+                )
             except vol.Invalid:
                 values = {**self.current, **user_input}
                 return self.async_show_form(
@@ -456,7 +473,7 @@ class JGEnergyOptionsFlow(config_entries.OptionsFlow):
                     data_schema=self.add_suggested_values_to_schema(
                         _charger_schema(values), values
                     ),
-                    errors={CONF_CONNECTED_STATES: "invalid_connected_states"},  # noqa: F405
+                    errors={"base": "invalid_charger_states"},
                 )
         return await self._save_step("charger", user_input, _charger_schema(self.current))
 

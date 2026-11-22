@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, PLATFORMS
+from .const import CONF_CHARGING_STATES, DEFAULTS, DOMAIN, PLATFORMS
 from .coordinator import JGEnergyCoordinator
 
 
@@ -20,6 +20,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: JGEnergyConfigEntry) -> 
     entry.runtime_data = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate existing entries without replacing stable entity unique IDs."""
+    if entry.version < 2:
+        data = dict(entry.data)
+        data.setdefault(CONF_CHARGING_STATES, DEFAULTS[CONF_CHARGING_STATES])
+        hass.config_entries.async_update_entry(entry, data=data, version=2)
     return True
 
 

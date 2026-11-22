@@ -15,8 +15,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(
         [
             JGConnectedSensor(coordinator, "charger_connected"),
+            JGChargingSensor(coordinator, "charger_charging"),
             JGLiveControlSensor(coordinator, "live_control"),
             JGInputHealthSensor(coordinator, "input_health"),
+            JGActuatorHealthSensor(coordinator, "actuator_health"),
         ]
     )
 
@@ -28,6 +30,15 @@ class JGConnectedSensor(JGEnergyEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         return bool(self.coordinator.data["connected"])
+
+
+class JGChargingSensor(JGEnergyEntity, BinarySensorEntity):
+    _attr_translation_key = "charger_charging"
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self.coordinator.data["charging"])
 
 
 class JGLiveControlSensor(JGEnergyEntity, BinarySensorEntity):
@@ -49,3 +60,23 @@ class JGInputHealthSensor(JGEnergyEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         return not bool(self.coordinator.data["inputs_valid"])
+
+
+class JGActuatorHealthSensor(JGEnergyEntity, BinarySensorEntity):
+    _attr_translation_key = "actuator_health"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    @property
+    def is_on(self) -> bool:
+        return not bool(self.coordinator.data["actuator"]["healthy"])
+
+    @property
+    def extra_state_attributes(self):
+        actuator = self.coordinator.data["actuator"]
+        return {
+            "status": actuator["status"],
+            "last_result": actuator["last_command_result"],
+            "last_error": actuator["last_command_error"],
+            "consecutive_failures": actuator["consecutive_failures"],
+            "next_retry_at": actuator["next_retry_at"],
+        }

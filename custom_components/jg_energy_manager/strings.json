@@ -12,7 +12,7 @@
       },
       "energy": {
         "title": "Energy inputs",
-        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.2.0.",
+        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.3.0.",
         "data": {
           "battery_soc_entity": "Battery state of charge sensor",
           "battery_power_entity": "Battery power sensor (optional)",
@@ -35,14 +35,16 @@
           "charger_energy_entity": "Cumulative charger energy sensor",
           "charger_enable_entity": "Charger enable switch",
           "charger_current_entity": "Writable charging current number",
-          "connected_states": "States that mean a vehicle is connected"
+          "connected_states": "States that mean a vehicle is connected",
+          "charging_states": "States that confirm active charging"
         },
         "data_description": {
           "charger_status_entity": "Select EVCC state, not EVCC charging.",
           "charger_enable_entity": "Select EVCC charging, not Charging state.",
           "charger_current_entity": "Select the Smappee Charging current setpoint, not the fixed Maximum current ceiling.",
           "charger_energy_entity": "Used to measure energy delivered since plug-in.",
-          "connected_states": "For the Smappee EVCC state sensor, enter B,C."
+          "connected_states": "For the Smappee EVCC state sensor, enter B,C.",
+          "charging_states": "For the Smappee EVCC state sensor, enter C,charging. Satisfaction requires a transition out of an active charging state."
         }
       },
       "schedule": {
@@ -116,8 +118,8 @@
         }
       },
       "secondary": {
-        "title": "Future on/off charger",
-        "description": "The second charger is stored and diagnosed in v0.2.0. Automatic control logic is intentionally not enabled yet.",
+        "title": "Parked second charger",
+        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.0.",
         "data": {
           "secondary_enabled": "Configure second charger",
           "secondary_name": "Second charger name",
@@ -126,7 +128,7 @@
           "secondary_power_entity": "Second charger power sensor (optional)"
         },
         "data_description": {
-          "secondary_enabled": "Disabled second-charger mappings are cleared; automatic second-charger control is not enabled yet."
+          "secondary_enabled": "Mappings may be retained for diagnostics; Charger 2 remains parked with no automatic control."
         }
       }
     },
@@ -134,7 +136,8 @@
       "invalid_connected_states": "Enter at least one connected state, for example B,C.",
       "invalid_month_list": "Use comma-separated month numbers from 1 to 12.",
       "invalid_phases": "Select either 1 phase or 3 phases.",
-      "secondary_switch_required": "Select an on/off switch when the second charger is enabled."
+      "secondary_switch_required": "Select an on/off switch when the second charger is enabled.",
+      "invalid_charger_states": "Enter at least one connected state and one active charging state."
     },
     "abort": {
       "already_configured": "This controller is already configured."
@@ -176,14 +179,16 @@
           "charger_energy_entity": "Cumulative charger energy sensor",
           "charger_enable_entity": "Charger enable switch",
           "charger_current_entity": "Writable charging current number",
-          "connected_states": "States that mean a vehicle is connected"
+          "connected_states": "States that mean a vehicle is connected",
+          "charging_states": "States that confirm active charging"
         },
         "data_description": {
           "charger_status_entity": "Select EVCC state, not EVCC charging.",
           "charger_enable_entity": "Select EVCC charging, not Charging state.",
           "charger_current_entity": "Select the Smappee Charging current setpoint, not the fixed Maximum current ceiling.",
           "charger_energy_entity": "Used to measure energy delivered since plug-in.",
-          "connected_states": "For the Smappee EVCC state sensor, enter B,C."
+          "connected_states": "For the Smappee EVCC state sensor, enter B,C.",
+          "charging_states": "For the Smappee EVCC state sensor, enter C,charging. Satisfaction requires a transition out of an active charging state."
         }
       },
       "schedule": {
@@ -257,7 +262,7 @@
         }
       },
       "secondary": {
-        "title": "Future on/off charger",
+        "title": "Parked second charger",
         "data": {
           "secondary_enabled": "Configure second charger",
           "secondary_name": "Second charger name",
@@ -266,15 +271,17 @@
           "secondary_power_entity": "Second charger power sensor (optional)"
         },
         "data_description": {
-          "secondary_enabled": "Disabled second-charger mappings are cleared; automatic second-charger control is not enabled yet."
-        }
+          "secondary_enabled": "Mappings may be retained for diagnostics; Charger 2 remains parked with no automatic control."
+        },
+        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.0."
       }
     },
     "error": {
       "invalid_connected_states": "Enter at least one connected state, for example B,C.",
       "invalid_month_list": "Use comma-separated month numbers from 1 to 12.",
       "invalid_phases": "Select either 1 phase or 3 phases.",
-      "secondary_switch_required": "Select an on/off switch when the second charger is enabled."
+      "secondary_switch_required": "Select an on/off switch when the second charger is enabled.",
+      "invalid_charger_states": "Enter at least one connected state and one active charging state."
     }
   },
   "selector": {
@@ -315,13 +322,13 @@
         "name": "Required average power"
       },
       "available_solar_power": {
-        "name": "Available solar power"
+        "name": "Available solar power (observed)"
       },
       "session_energy": {
         "name": "Energy delivered this session"
       },
       "energy_remaining": {
-        "name": "Maximum energy remaining"
+        "name": "Remaining session energy allowance"
       },
       "projected_completion": {
         "name": "Projected completion"
@@ -331,6 +338,27 @@
       },
       "secondary_charger_state": {
         "name": "Second charger state"
+      },
+      "last_session_energy": {
+        "name": "Last session vehicle energy"
+      },
+      "last_session_unused_allowance": {
+        "name": "Last session unused allowance"
+      },
+      "last_session_started": {
+        "name": "Last session started"
+      },
+      "last_session_ended": {
+        "name": "Last session ended"
+      },
+      "last_session_end_reason": {
+        "name": "Last session end reason"
+      },
+      "last_acknowledged_current": {
+        "name": "Last acknowledged charger current"
+      },
+      "last_command_result": {
+        "name": "Last charger command result"
       }
     },
     "binary_sensor": {
@@ -342,6 +370,12 @@
       },
       "input_health": {
         "name": "Input problem"
+      },
+      "charger_charging": {
+        "name": "Vehicle charging"
+      },
+      "actuator_health": {
+        "name": "Actuator problem"
       }
     },
     "switch": {

@@ -125,7 +125,7 @@ def test_connected_states_accept_text_and_selector_lists():
 def test_custom_normalisers_are_not_exposed_as_form_schema_validators():
     """Every custom text normaliser must run after Home Assistant form parsing."""
     schemas = {
-        "_charger_schema": ("_connected_states", 1),
+        "_charger_schema": ("_connected_states", 2),
         "_schedule_schema": ("_normalise_month_list", 1),
     }
 
@@ -174,6 +174,13 @@ def test_config_and_options_steps_normalise_text_after_submit():
                 and call.func.id == normaliser
                 for call in ast.walk(step)
             )
+            if step_name == "async_step_charger":
+                assert any(
+                    isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Name)
+                    and call.func.id == "_charging_states"
+                    for call in ast.walk(step)
+                )
 
 
 def test_peak_months_normaliser_accepts_defaults_and_rejects_bad_values():

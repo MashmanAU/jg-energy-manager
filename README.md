@@ -1,10 +1,12 @@
 # JG Energy Manager
 
-A Home Assistant custom integration for deadline-aware EV charging and home-battery-aware solar charging. Version **0.2.0** is designed for a single smart Smappee EV charger with a writable **6-32 A** current setpoint and read-only AlphaESS inputs.
+> **v0.3.0 release-candidate notice:** this source is not approved for installation or live controller operation until the GitHub **Validate** and **Release** workflows are green for the exact commit/tag. See [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md).
+
+A Home Assistant custom integration for deadline-aware EV charging and home-battery-aware solar charging. Version **0.3.0** is designed for a single smart Smappee EV charger with a writable **6-32 A** current setpoint and read-only AlphaESS inputs.
 
 > **Safety default:** the integration starts in **Observe Only** mode. It calculates and exposes every proposed action, but does not write to the charger until Observe Only is explicitly turned off.
 
-## v0.2.0 scope
+## v0.3.0 scope
 
 - Post-peak battery-following EV charging without sustained grid import.
 - Buffered-deadline pacing and explicit recovery/impossible-target diagnostics.
@@ -12,6 +14,8 @@ A Home Assistant custom integration for deadline-aware EV charging and home-batt
 - Maximum session energy allowance with early-full detection.
 - Automatic, Force Charge, Solar Only and Off modes.
 - Observe Only commissioning and complete UI configuration.
+- Acknowledged live actuation with bounded retry/backoff and visible actuator health.
+- Accurate meter-first session accounting, frozen early-full energy and retained last-session results.
 
 See [Control logic](docs/CONTROL_LOGIC.md) and [configuration](docs/CONFIGURATION.md).
 
@@ -46,21 +50,24 @@ Choose entities by friendly name because the Smappee device serial forms part of
 
 Do **not** select `Home Charger Connector 1 Maximum current` as the writable control. The charging-current-limit entity is the dynamic setpoint, while maximum current is the fixed installation ceiling.
 
-Default connected status values are `B,C` and can be edited in the integration options.
+Default connected status values are `B,C`; active charging values are `C,charging`. Both are editable in the integration options.
 
 ## First commissioning
 
 1. Complete setup with **Start in Observe Only mode** enabled.
-2. Connect a vehicle and leave Observe Only on for at least one overnight and one solar period.
+2. Connect a vehicle and leave Observe Only on while checking the live input signs and proposed daytime-solar calculation.
 3. Verify:
    - **Controller reason** matches the expected window;
    - **Calculated current** stays between 6 A and 32 A;
    - **Grid import** is positive in the diagnostics (change the sign option if not);
    - session energy increases while charging;
-   - peak protection calculates an off command between 3 pm and 9 pm.
+    - peak protection calculates an off command between 3 pm and 9 pm unless genuine solar overflow is available;
+    - **Available solar power** shows observed excess, while **Calculated power** shows the policy-controlled EV allocation;
+    - **Actuator problem** is off.
 4. Test the Smappee switch and charging-current number manually in Home Assistant.
-5. Turn **Observe Only** off. The **Live control active** binary sensor should turn on.
-6. Keep the **Operating mode** select on **Automatic** for normal operation.
+5. Disable or delete the temporary helper automation so there is only one writer to the charger.
+6. Turn **Observe Only** off. The **Live control active** binary sensor should turn on.
+7. Keep the **Operating mode** select on **Automatic** for daytime solar excess and overnight operation.
 
 ## Controller priority
 
@@ -69,12 +76,12 @@ The automatic priority is deliberately deterministic:
 1. Disabled, Off, disconnected, full/satisfied, maximum allowance reached or invalid input -> safe stop.
 2. Force Charge -> configured manual current, bounded by electrical limits.
 3. Solar Only -> no-grid and no-battery-discharge charging only.
-4. Automatic peak window -> stop unless charging is physically required for deadline feasibility.
+4. Automatic peak window -> use genuine solar overflow first; otherwise stop unless charging is physically required for deadline feasibility.
 5. Post-peak above the battery floor -> battery-following maximum without sustained import.
 6. At the floor -> continuously pace the remainder to the buffered deadline.
 7. Daytime -> battery-priority overflow below reserve, then EV-priority no-grid solar above reserve.
 
-See [Control logic](docs/CONTROL_LOGIC.md) for formulas, edge cases and the session model, and [v0.2.0 requirement traceability](docs/REQUIREMENTS.md) for scope coverage.
+See [Control logic](docs/CONTROL_LOGIC.md) for formulas, edge cases and the session model, and [v0.3.0 requirement traceability](docs/REQUIREMENTS.md) for scope coverage.
 
 ## Entities created
 
@@ -89,11 +96,13 @@ See [Control logic](docs/CONTROL_LOGIC.md) for formulas, edge cases and the sess
 
 - Controller state and reason
 - Calculated current and power
-- Required average power and available solar power
-- Energy delivered this session and maximum energy remaining
+- Required average power and observational available solar power
+- Energy delivered this session and remaining session energy allowance
+- Last-session energy, unused allowance, start/end and end reason
 - Projected completion and current deadline
-- Vehicle connected, live control active and input problem
-- Second charger state (`not_configured` or `reserved_for_future_logic`)
+- Vehicle connected, vehicle charging, live control active, input problem and actuator problem
+- Last acknowledged current and charger command result
+- Second charger state (`parked_no_active_control`)
 
 ## Configuration changes
 
@@ -111,12 +120,12 @@ From Windows PowerShell:
 powershell.exe -ExecutionPolicy Bypass -File ".\publish.ps1" -RepositoryPath "C:\path\to\jg-energy-manager"
 ```
 
-The script validates versions and JSON, compiles Python, runs tests, scans for likely secrets, builds release ZIPs, commits changes, tags `v0.2.0`, and pushes `main` plus the tag to `https://github.com/MashmanAU/jg-energy-manager.git`. Use `-NoPush` for a local validation/package run.
+The script validates versions and JSON, compiles Python, runs tests, scans for likely secrets, builds release ZIPs, commits changes, tags `v0.3.0`, and pushes `main` plus the tag to `https://github.com/MashmanAU/jg-energy-manager.git`. Use `-NoPush` for a local validation/package run.
 
 ## Important limitations
 
 - **No AlphaESS write control:** battery SOC and optional battery power are read-only inputs.
 - **No vehicle SOC:** the session target is an upper bound, not a known vehicle requirement.
-- **Second charger:** configuration only; no automatic actuation in v0.2.0.
+- **Second charger:** configuration only; no automatic actuation in v0.3.0.
 - **Single controller instance per charger:** do not run EVCC or another automation against the same Smappee enable/current entities at the same time.
 - This software controls charging equipment through Home Assistant. Commission in Observe Only mode and confirm electrical limits against the charger installation.

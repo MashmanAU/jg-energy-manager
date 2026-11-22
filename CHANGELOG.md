@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 - 2026-11-23
+
+- Restored migration-safe measurement metadata for Remaining Session Energy Allowance while preserving the established unique ID and historical statistics continuity.
+- Made cumulative charger energy authoritative, removed connection-edge and restart backdating, added bounded integration fallback/recovery, and froze vehicle-delivered energy at satisfaction.
+- Added persistent last-session energy, unused allowance, start/end, satisfaction and end-reason semantics.
+- Added acknowledged live actuation, bounded retry/backoff, command-health entities, failed-stop notification and protection against enabling before current acknowledgement.
+- Applied configured charging states to early-full detection and exposed connected-versus-charging diagnostics.
+- Confirmed genuine solar overflow precedence during tariff peaks and separated observational Available Solar Power from policy-controlled Calculated Power.
+- Rounded public sensor values and projected completion to reduce recorder churn without reducing control precision.
+- Expanded redacted diagnostics with effective configuration, session accounting source, input health and actuator acknowledgement details.
+- Kept Charger 2 parked with no active control logic and preserved all v0.2.0 policy, config-flow, released-archive and deterministic simulation gates.
+
 ## 0.2.0 - 2026-11-22
 
 - Added post-peak battery-following control that ramps toward the highest stable EV rate without sustained grid import and reduces quickly around house loads.

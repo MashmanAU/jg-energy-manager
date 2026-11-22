@@ -1,4 +1,4 @@
-"""Home Assistant coordinator and actuator boundary."""
+"""Home Assistant coordinator and resilient actuator boundary."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
+from .actuator import ActuatorState
 from .const import (
     BATTERY_POSITIVE_CHARGE,
     CONF_BATTERY_POWER_ENTITY,
@@ -25,6 +26,7 @@ from .const import (
     CONF_CHARGER_POWER_ENTITY,
     CONF_CHARGER_STATUS_ENTITY,
     CONF_CHARGING_EFFICIENCY,
+    CONF_CHARGING_STATES,
     CONF_COMPLETION_BUFFER_MIN,
     CONF_COMMAND_DEADBAND_A,
     CONF_CONNECTED_STATES,
@@ -72,14 +74,9 @@ from .const import (
     STORAGE_KEY_PREFIX,
     STORAGE_VERSION,
 )
-from .planner import (
-    ControllerState,
-    Decision,
-    PlannerInputs,
-    PlannerSettings,
-    calculate_decision,
-)
+from .planner import ControllerState, Decision, PlannerInputs, PlannerSettings, calculate_decision
 from .runtime import RuntimeState
+from .session import SessionSample, SessionSettings, update_session
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,7 +99,7 @@ def _float_state(state: State | None) -> float | None:
 
 
 class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Read input entities, run the planner and apply bounded commands."""
+    """Read inputs, run deterministic policy and apply acknowledged commands."""
 
     config_entry: ConfigEntry
 
@@ -124,10 +121,9 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.runtime = RuntimeState(
             observe_only=bool(self.settings[CONF_INITIAL_OBSERVE_ONLY])
         )
+        self.actuator = ActuatorState()
         self._last_decision: Decision | None = None
-        self._last_command_at: datetime | None = None
         self._last_saved_at: datetime | None = None
-        self._last_written_current: float | None = None
         self._last_increase_at: datetime | None = None
         self._last_decrease_at: datetime | None = None
 
@@ -195,13 +191,14 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             and status.casefold() not in {"unknown", "unavailable", "none", ""}
         )
         connected = (
-            bool(
-                status_valid
-                and status.casefold()
-                in _csv_states(self.settings[CONF_CONNECTED_STATES])
-            )
+            status.casefold() in _csv_states(self.settings[CONF_CONNECTED_STATES])
             if status_valid
             else self.runtime.was_connected
+        )
+        charging = (
+            status.casefold() in _csv_states(self.settings[CONF_CHARGING_STATES])
+            if status_valid
+            else self.runtime.was_charging
         )
         charger_enabled = bool(enable_state and enable_state.state == STATE_ON)
         grid_import = (
@@ -217,12 +214,36 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             else battery_power_raw
         )
 
-        self._update_session(
-            now=now,
-            connected=connected,
-            charger_power_w=charger_power or 0.0,
-            energy_total_kwh=energy_total,
-            charger_enabled=charger_enabled,
+        ack_timeout = max(90.0, 3.0 * float(self.settings[CONF_CONTROL_INTERVAL_S]))
+        self.actuator.observe(
+            now,
+            current_a=current_state,
+            enabled=charger_enabled,
+            deadband_a=float(self.settings[CONF_COMMAND_DEADBAND_A]),
+            acknowledgement_timeout_s=ack_timeout,
+        )
+
+        update_session(
+            self.runtime,
+            SessionSample(
+                now=now,
+                connected=connected,
+                charging=charging,
+                charger_power_w=charger_power or 0.0,
+                energy_total_kwh=energy_total,
+                charger_enabled=charger_enabled,
+                requesting_charge=bool(
+                    self._last_decision
+                    and self._last_decision.should_enable
+                    and (self.runtime.observe_only or self.actuator.healthy)
+                ),
+            ),
+            SessionSettings(
+                target_energy_kwh=float(self.settings[CONF_TARGET_ENERGY_KWH]),
+                control_interval_s=float(self.settings[CONF_CONTROL_INTERVAL_S]),
+                idle_power_w=float(self.settings[CONF_IDLE_POWER_W]),
+                no_demand_timeout_s=float(self.settings[CONF_NO_DEMAND_TIMEOUT_S]),
+            ),
         )
 
         required_values = (
@@ -232,9 +253,13 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             charger_power,
             current_state,
         )
-        inputs_valid = all(value is not None for value in required_values) and status_valid and bool(
-            enable_state
-            and enable_state.state not in {"unknown", "unavailable", "none", ""}
+        inputs_valid = (
+            all(value is not None for value in required_values)
+            and status_valid
+            and bool(
+                enable_state
+                and enable_state.state not in {"unknown", "unavailable", "none", ""}
+            )
         )
         decision = calculate_decision(
             PlannerInputs(
@@ -274,6 +299,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         await self._async_maybe_save(now)
 
+        # Charger 2 remains diagnostic-only and has no actuator path.
         secondary_configured = bool(self.settings.get(CONF_SECONDARY_ENABLED))
         secondary = {
             "configured": secondary_configured,
@@ -287,7 +313,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "power_w": _float_state(self._state(CONF_SECONDARY_POWER_ENTITY))
             if secondary_configured
             else None,
-            "control_state": "reserved_for_future_logic",
+            "control_state": "parked_no_active_control",
         }
         return {
             "decision": decision,
@@ -301,79 +327,16 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "charger_status": status,
             "charger_enabled": charger_enabled,
             "connected": connected,
+            "charging": charging,
             "session_energy_kwh": self.runtime.session_energy_kwh,
             "observe_only": self.runtime.observe_only,
             "controller_enabled": self.runtime.controller_enabled,
             "override": self.runtime.override,
             "vehicle_satisfied": self.runtime.vehicle_satisfied,
             "inputs_valid": inputs_valid,
+            "actuator": self.actuator.as_dict(),
             "secondary": secondary,
         }
-
-    def _update_session(
-        self,
-        *,
-        now: datetime,
-        connected: bool,
-        charger_power_w: float,
-        energy_total_kwh: float | None,
-        charger_enabled: bool,
-    ) -> None:
-        rt = self.runtime
-        previous_sample = RuntimeState.parse_dt(rt.last_sample_at)
-        if connected and not rt.was_connected:
-            rt.energy_baseline_kwh = energy_total_kwh
-            rt.integrated_energy_kwh = 0.0
-            rt.session_energy_kwh = 0.0
-            rt.vehicle_satisfied = False
-            rt.low_demand_since = None
-        elif not connected and rt.was_connected:
-            rt.energy_baseline_kwh = None
-            rt.integrated_energy_kwh = 0.0
-            rt.session_energy_kwh = 0.0
-            rt.vehicle_satisfied = False
-            rt.low_demand_since = None
-
-        if connected and previous_sample is not None:
-            seconds = max(0.0, min((now - previous_sample).total_seconds(), 300.0))
-            rt.integrated_energy_kwh += max(0.0, charger_power_w) * seconds / 3_600_000.0
-
-        counter_delta = None
-        if (
-            connected
-            and energy_total_kwh is not None
-            and rt.energy_baseline_kwh is not None
-            and energy_total_kwh >= rt.energy_baseline_kwh
-        ):
-            counter_delta = energy_total_kwh - rt.energy_baseline_kwh
-        rt.session_energy_kwh = max(
-            rt.integrated_energy_kwh,
-            counter_delta if counter_delta is not None else 0.0,
-        )
-
-        requesting_charge = bool(
-            self._last_decision and self._last_decision.should_enable
-        )
-        idle_threshold = float(self.settings[CONF_IDLE_POWER_W])
-        if (
-            connected
-            and charger_enabled
-            and requesting_charge
-            and charger_power_w < idle_threshold
-        ):
-            if rt.low_demand_since is None:
-                rt.low_demand_since = now.isoformat()
-            since = RuntimeState.parse_dt(rt.low_demand_since)
-            if since and (now - since).total_seconds() >= int(
-                self.settings[CONF_NO_DEMAND_TIMEOUT_S]
-            ):
-                rt.vehicle_satisfied = True
-        else:
-            rt.low_demand_since = None
-
-        rt.was_connected = connected
-        rt.last_sample_at = now.isoformat()
-        rt.last_energy_total_kwh = energy_total_kwh
 
     async def _async_apply_decision(
         self,
@@ -384,70 +347,104 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         current_state: float | None,
     ) -> None:
         if self.runtime.observe_only:
+            self.actuator.mark_observe_only()
             return
         if not self.runtime.controller_enabled and not self.settings[CONF_STOP_WHEN_DISABLED]:
             return
         if decision.state is ControllerState.INPUT_ERROR and not self.settings[CONF_FAIL_SAFE_STOP]:
             return
 
-        # Stop commands are never delayed by command-rate limiting. This keeps
-        # peak entry, fail-safe input loss and Off mode fail-safe by default.
         if not decision.should_enable:
-            if charger_enabled:
-                await self._async_turn(self.settings[CONF_CHARGER_ENABLE_ENTITY], False)
-                self._last_command_at = now
+            self.actuator.cancel_pending_current()
+            if charger_enabled and self.actuator.can_attempt(now, safety_stop=True):
+                ok = await self._async_command_turn(False, now, safety_stop=True)
+                if ok:
+                    self.actuator.begin(now, requested_enabled=False)
             return
 
-        decreasing = bool(
-            current_state is not None
-            and decision.requested_current_a < current_state
-        )
+        requested = decision.requested_current_a
+        self.actuator.cancel_pending_for_reduction(requested)
+        decreasing = bool(current_state is not None and requested < current_state)
+        last_command_at = self.actuator._parse(self.actuator.last_command_at)
         if (
             not decreasing
-            and self._last_command_at is not None
-            and (now - self._last_command_at).total_seconds()
+            and last_command_at is not None
+            and (now - last_command_at).total_seconds()
             < float(self.settings[CONF_MIN_COMMAND_INTERVAL_S])
         ):
             return
+        if not self.actuator.can_attempt(now):
+            return
 
-        command_sent = False
-        if decision.should_enable:
-            deadband = float(self.settings[CONF_COMMAND_DEADBAND_A])
-            if current_state is None or abs(current_state - decision.requested_current_a) >= deadband:
-                await self._async_set_number(
-                    self.settings[CONF_CHARGER_CURRENT_ENTITY],
-                    decision.requested_current_a,
-                )
-                self._last_written_current = decision.requested_current_a
-                if current_state is not None and decision.requested_current_a < current_state:
-                    self._last_decrease_at = now
-                else:
-                    self._last_increase_at = now
-                command_sent = True
+        deadband = float(self.settings[CONF_COMMAND_DEADBAND_A])
+        if current_state is None or abs(current_state - requested) >= deadband:
+            if not await self._async_command_current(requested, now):
+                return
+            self.actuator.begin(now, requested_current_a=requested)
+            if current_state is not None and requested < current_state:
+                self._last_decrease_at = now
+            else:
+                self._last_increase_at = now
+            # Require the writable current entity to acknowledge before enabling.
             if not charger_enabled:
-                await self._async_turn(self.settings[CONF_CHARGER_ENABLE_ENTITY], True)
-                command_sent = True
-        if command_sent:
-            self._last_command_at = now
+                return
 
-    async def _async_turn(self, entity_id: str, on: bool) -> None:
-        domain = entity_id.split(".", 1)[0]
-        await self.hass.services.async_call(
-            domain,
-            "turn_on" if on else "turn_off",
-            {"entity_id": entity_id},
-            blocking=True,
-        )
+        if not charger_enabled and self.actuator.can_attempt(now):
+            if await self._async_command_turn(True, now):
+                self.actuator.begin(now, requested_enabled=True)
 
-    async def _async_set_number(self, entity_id: str, value: float) -> None:
+    async def _async_command_turn(
+        self, on: bool, now: datetime, *, safety_stop: bool = False
+    ) -> bool:
+        entity_id = self.settings[CONF_CHARGER_ENABLE_ENTITY]
         domain = entity_id.split(".", 1)[0]
-        service = "set_value"
-        await self.hass.services.async_call(
-            domain,
-            service,
-            {"entity_id": entity_id, "value": value},
-            blocking=True,
-        )
+        try:
+            await self.hass.services.async_call(
+                domain,
+                "turn_on" if on else "turn_off",
+                {"entity_id": entity_id},
+                blocking=True,
+            )
+            return True
+        except Exception as err:  # third-party services raise varied HA exceptions
+            _LOGGER.error("Charger %s command failed: %s", "enable" if on else "stop", err)
+            self.actuator.record_failure(now, err)
+            if safety_stop:
+                await self._async_notify_failed_stop(str(err))
+            return False
+
+    async def _async_command_current(self, value: float, now: datetime) -> bool:
+        entity_id = self.settings[CONF_CHARGER_CURRENT_ENTITY]
+        domain = entity_id.split(".", 1)[0]
+        self.actuator.last_requested_current_a = value
+        try:
+            await self.hass.services.async_call(
+                domain,
+                "set_value",
+                {"entity_id": entity_id, "value": value},
+                blocking=True,
+            )
+            return True
+        except Exception as err:  # third-party services raise varied HA exceptions
+            _LOGGER.error("Charger current command %.1f A failed: %s", value, err)
+            self.actuator.record_failure(now, err)
+            return False
+
+    async def _async_notify_failed_stop(self, error: str) -> None:
+        """Raise a persistent safety notification without masking the root error."""
+        try:
+            await self.hass.services.async_call(
+                "persistent_notification",
+                "create",
+                {
+                    "notification_id": f"{DOMAIN}_{self.config_entry.entry_id}_stop_failed",
+                    "title": "JG Energy Manager could not stop the charger",
+                    "message": f"Verify the charger immediately. Service error: {error}",
+                },
+                blocking=False,
+            )
+        except Exception:
+            _LOGGER.exception("Unable to create charger stop-failure notification")
 
     async def _async_maybe_save(self, now: datetime) -> None:
         if self._last_saved_at is None or (now - self._last_saved_at).total_seconds() >= 300:
@@ -473,8 +470,13 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         total = _float_state(self._state(CONF_CHARGER_ENERGY_ENTITY))
         self.runtime.energy_baseline_kwh = total
         self.runtime.integrated_energy_kwh = 0.0
+        self.runtime.counter_delta_kwh = 0.0 if total is not None else None
         self.runtime.session_energy_kwh = 0.0
+        self.runtime.session_energy_source = "meter" if total is not None else "integrated_fallback"
+        self.runtime.energy_meter_available = total is not None
         self.runtime.vehicle_satisfied = False
+        self.runtime.session_satisfied_at = None
+        self.runtime.satisfied_energy_kwh = None
         self.runtime.low_demand_since = None
         await self.store.async_save(self.runtime.as_dict())
         await self.async_request_refresh()

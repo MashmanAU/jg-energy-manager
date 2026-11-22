@@ -27,6 +27,7 @@ if os.environ.get("JG_REAL_HA_TEST") != "1":
 homeassistant = pytest.importorskip("homeassistant")
 probatio = pytest.importorskip("probatio")
 from homeassistant.helpers import config_validation as cv  # noqa: E402
+from homeassistant.components.sensor import SensorStateClass  # noqa: E402
 
 ROOT = Path(__file__).parents[1]
 ARCHIVE = ROOT / "dist" / "jg_energy_manager.zip"
@@ -131,6 +132,7 @@ def test_built_hacs_archive_completes_real_home_assistant_config_flow(tmp_path):
             "charger_enable_entity": "switch.home_charger_evcc_charging",
             "charger_current_entity": "number.home_charger_charging_current_limit",
             "connected_states": "B,C",
+            "charging_states": "C,charging",
         },
     )
     assert result["step_id"] == "schedule"
@@ -198,9 +200,22 @@ def test_built_hacs_archive_completes_real_home_assistant_config_flow(tmp_path):
     )
     assert result["type"] == "create_entry"
     assert result["data"]["phases"] == 1
+    assert result["data"]["charging_states"] == "C,charging"
     assert result["data"]["completion_buffer_min"] == 30
     assert result["data"]["battery_max_charge_power_w"] == 5000.0
     assert result["data"]["grid_tolerance_w"] == 100.0
     assert result["data"]["force_charge_current_a"] == 32.0
     assert result["data"]["increase_dwell_s"] == 120
     assert result["data"]["decrease_dwell_s"] == 0
+
+    # Instantiate release metadata against the real Home Assistant sensor API.
+    sensor_module = __import__(
+        f"{module.__package__}.sensor", fromlist=["SENSORS"]
+    )
+    remaining = next(
+        description
+        for description in sensor_module.SENSORS
+        if description.key == "energy_remaining"
+    )
+    assert remaining.state_class is SensorStateClass.MEASUREMENT
+    assert remaining.device_class is None

@@ -146,7 +146,41 @@ def test_below_reserve_only_genuine_battery_overflow_charges_ev():
     )
     assert result.state is ControllerState.DAYTIME_OVERFLOW
     assert result.requested_current_a == 6
-    assert result.available_solar_power_w == 1600
+    assert result.available_solar_power_w == 7000
+    assert result.policy_solar_power_w == 1600
+
+
+def test_peak_solar_overflow_precedes_peak_grid_protection():
+    result = calculate_decision(
+        inputs(
+            "2026-11-21T16:00:00+11:00",
+            battery_soc=30,
+            solar_power_w=7000,
+            grid_import_w=-2000,
+            battery_power_w=-5000,
+        ),
+        PlannerSettings(),
+    )
+    assert result.state is ControllerState.DAYTIME_OVERFLOW
+    assert result.should_enable
+    assert result.available_solar_power_w == 7000
+    assert result.requested_power_w == 1380
+
+
+def test_available_solar_is_observational_while_calculated_power_remains_policy_controlled():
+    result = calculate_decision(
+        inputs(
+            "2026-11-21T12:00:00+11:00",
+            battery_soc=30,
+            solar_power_w=6000,
+            grid_import_w=-1000,
+            battery_power_w=-5000,
+        ),
+        PlannerSettings(),
+    )
+    assert result.available_solar_power_w == 6000
+    assert result.policy_solar_power_w == 600
+    assert result.requested_power_w == 0
 
 
 def test_below_reserve_does_not_bridge_from_grid_or_battery():

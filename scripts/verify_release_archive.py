@@ -14,6 +14,11 @@ ARCHIVE = ROOT / "dist" / "jg_energy_manager.zip"
 EXPECTED_FILES = {
     "config_flow.py",
     "const.py",
+    "actuator.py",
+    "session.py",
+    "runtime.py",
+    "coordinator.py",
+    "sensor.py",
     "manifest.json",
     "strings.json",
     "translations/en.json",
@@ -68,6 +73,7 @@ def main() -> None:
                 if isinstance(node, ast.Name) and node.id in {
                     "_normalise_month_list",
                     "_connected_states",
+                    "_charging_states",
                 }:
                     raise SystemExit(
                         f"{name} embeds custom callable validator {node.id}"
@@ -96,6 +102,30 @@ def main() -> None:
         )
         if strings != translation:
             raise SystemExit("HACS archive strings and English translation differ")
+
+        sensor_tree = ast.parse((target / "sensor.py").read_text(encoding="utf-8"))
+        remaining = next(
+            call
+            for call in ast.walk(sensor_tree)
+            if isinstance(call, ast.Call)
+            and any(
+                keyword.arg == "key"
+                and isinstance(keyword.value, ast.Constant)
+                and keyword.value.value == "energy_remaining"
+                for keyword in call.keywords
+            )
+        )
+        remaining_keywords = {keyword.arg: keyword.value for keyword in remaining.keywords}
+        state_class = remaining_keywords.get("state_class")
+        if not (
+            isinstance(state_class, ast.Attribute)
+            and state_class.attr == "MEASUREMENT"
+            and "device_class" not in remaining_keywords
+        ):
+            raise SystemExit(
+                "Remaining allowance must retain measurement statistics without "
+                "an incompatible energy device class"
+            )
 
         limits = strings["config"]["step"]["limits"]
         required_labels = {

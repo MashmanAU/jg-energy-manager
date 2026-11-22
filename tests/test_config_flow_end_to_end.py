@@ -383,6 +383,7 @@ def _full_setup_entry() -> dict[str, Any]:
             "charger_enable_entity": "switch.home_charger_evcc_charging",
             "charger_current_entity": "number.home_charger_charging_current_limit",
             "connected_states": "B,C",
+            "charging_states": "C,charging",
         },
     )
 
@@ -459,6 +460,7 @@ def test_first_time_setup_renders_and_advances_through_every_form():
     assert result["data"]["phases"] == 1
     assert isinstance(result["data"]["phases"], int)
     assert result["data"]["connected_states"] == "B,C"
+    assert result["data"]["charging_states"] == "C,charging"
     assert result["data"]["peak_months"] == "1,2,3,6,7,8,11,12"
     assert result["data"]["completion_buffer_min"] == 30
     assert result["data"]["battery_max_charge_power_w"] == 5000.0

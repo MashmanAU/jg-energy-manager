@@ -1,4 +1,4 @@
-# Control logic - v0.2.0
+# Control logic - v0.3.0
 
 ## Safety and session boundaries
 
@@ -8,7 +8,7 @@ The energy target is a maximum per plug-in session, not a mandatory vehicle requ
 
 The operational deadline is the ready-by time minus the configurable completion buffer. The planner continuously checks maximum physical deliverability. It reports `impossible_target` when maximum current cannot deliver the remaining allowance by that deadline. It reports `deadline_recovery` when grid-supported charging must begin now to retain feasibility.
 
-Peak charging remains stopped when the remaining allowance still fits after peak. Peak import is requested only when deferring until peak end would make the buffered deadline infeasible.
+Genuine no-grid solar overflow takes precedence during the peak window. Otherwise charging remains stopped when the remaining allowance still fits after peak. Peak import is requested only when deferring until peak end would make the buffered deadline infeasible.
 
 ## Post-peak and overnight battery policy
 
@@ -22,6 +22,18 @@ Below the daytime reserve, the battery receives priority up to the configured ma
 
 At or above reserve, EV charging has priority over further battery charging. Current battery charging may be redirected to the EV, but grid import and battery discharge reduce the EV target. Increases are deliberately slow; decreases are fast.
 
+**Available Solar Power** is observational power-balance excess before policy margins and reserve allocation. **Calculated Power** is the bounded power actually proposed by policy. This keeps monitoring truthful while retaining conservative charger control.
+
+## Session accounting
+
+The cumulative charger energy meter is authoritative. The integration establishes its baseline on the first connected sample and never backdates the current power across the connection edge or a stale/restart gap. Bounded power integration is used only while the meter is unavailable; meter recovery rebases to the fallback total without a jump. A meter rollback similarly rebases without losing delivered energy.
+
+Early-full detection requires confirmed active charging during the session followed by a configured connected-but-not-charging state, low demand and the no-demand timeout while the controller is still requesting charge. Vehicle-delivered energy then freezes until disconnection. At disconnection the active values become unavailable and a persistent last-session summary is retained.
+
+## Live actuator boundary
+
+Current and enable services are issued only after deadband, dwell and command-interval checks. A current command must be observed on the writable current entity before an idle charger is enabled. Service failures and missing acknowledgements set actuator health, retain the planner output, and retry with bounded exponential backoff. Failed safety-stop commands also create a persistent notification.
+
 ## Operating modes
 
 - **Automatic** - complete battery, solar, peak and buffered-deadline policy.
@@ -29,6 +41,6 @@ At or above reserve, EV charging has priority over further battery charging. Cur
 - **Solar Only** - genuine no-grid, no-battery-discharge charging only; deadline recovery is disabled.
 - **Off** - stop charging.
 
-## Explicitly excluded from v0.2.0
+## Explicitly excluded from v0.3.0
 
-There is no site import-limit controller, AlphaESS write control or automatic second-charger actuation. Disabled second-charger mappings are cleared.
+There is no site import-limit controller, AlphaESS write control or automatic second-charger actuation. Charger 2 remains parked with diagnostic mappings only.

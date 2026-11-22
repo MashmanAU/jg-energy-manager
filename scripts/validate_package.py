@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 DOMAIN_DIR = ROOT / "custom_components" / "jg_energy_manager"
-EXPECTED_VERSION = "0.2.0"
+EXPECTED_VERSION = "0.3.0"
 
 
 def fail(message: str) -> None:
@@ -29,6 +29,7 @@ def load_json(path: Path):
 def main() -> None:
     required = [
         ROOT / "README.md",
+        ROOT / "RELEASE_CANDIDATE.md",
         ROOT / "hacs.json",
         ROOT / "publish.ps1",
         ROOT / "scripts" / "verify_release_archive.py",
@@ -37,6 +38,9 @@ def main() -> None:
         DOMAIN_DIR / "__init__.py",
         DOMAIN_DIR / "config_flow.py",
         DOMAIN_DIR / "coordinator.py",
+        DOMAIN_DIR / "actuator.py",
+        DOMAIN_DIR / "session.py",
+        DOMAIN_DIR / "runtime.py",
         DOMAIN_DIR / "planner.py",
         DOMAIN_DIR / "strings.json",
         DOMAIN_DIR / "translations" / "en.json",

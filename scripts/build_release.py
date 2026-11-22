@@ -44,7 +44,7 @@ def main() -> None:
     manual_zip = DIST / f"jg-energy-manager-v{version}.zip"
     with zipfile.ZipFile(manual_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         add_tree(archive, DOMAIN, Path("custom_components/jg_energy_manager"))
-        for name in ("README.md", "CHANGELOG.md", "SECURITY.md"):
+        for name in ("README.md", "RELEASE_CANDIDATE.md", "CHANGELOG.md", "SECURITY.md"):
             archive.write(ROOT / name, name)
 
     checksums = DIST / "SHA256SUMS"

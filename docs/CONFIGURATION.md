@@ -11,7 +11,9 @@ All mappings and policy values are editable under the integration's **Configure*
 
 ## Smart charger
 
-Use the Smappee Connector 1 entities **EVCC state**, **Power**, **Energy import**, **EVCC charging** and **Charging current limit**. Connected states default to `B,C`.
+Use the Smappee Connector 1 entities **EVCC state**, **Power**, **Energy import**, **EVCC charging** and **Charging current limit**. Connected states default to `B,C`; active charging states default to `C,charging`. The latter must positively identify charging so early-full detection cannot be caused by a failed command or an idle connected vehicle.
+
+Do not retain an automation that writes Calculated Current after live control is commissioned. The integration must be the sole writer to the enable and current entities so its acknowledgement, deadband, dwell and retry protections remain effective.
 
 ## Schedule and protection defaults
 
@@ -59,4 +61,4 @@ Use the Smappee Connector 1 entities **EVCC state**, **Power**, **Energy import*
 
 ## Second charger
 
-Second-charger automatic control remains disabled. Turning the reserved feature off clears its switch, status and power mappings.
+Charger 2 remains parked with no active control logic. Turning the reserved feature off clears its switch, status and power mappings.

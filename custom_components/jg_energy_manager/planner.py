@@ -113,7 +113,10 @@ class Decision:
     requested_power_w: float
     energy_remaining_kwh: float
     required_average_power_w: float
+    # Observational solar excess before reserve policy and safety margins.
     available_solar_power_w: float
+    # Solar power that policy is presently prepared to allocate to the EV.
+    policy_solar_power_w: float
     projected_completion: datetime | None
     deadline: datetime | None
 
@@ -204,6 +207,7 @@ def _decision(
     *,
     required_w: float = 0.0,
     available_solar_w: float = 0.0,
+    policy_solar_w: float = 0.0,
     deadline: datetime | None = None,
     now: datetime,
 ) -> Decision:
@@ -218,6 +222,7 @@ def _decision(
         energy_remaining_kwh=remaining,
         required_average_power_w=max(0.0, required_w),
         available_solar_power_w=max(0.0, available_solar_w),
+        policy_solar_power_w=max(0.0, policy_solar_w),
         projected_completion=_completion(
             now, remaining, power_w, settings.charging_efficiency
         ),
@@ -287,13 +292,32 @@ def _non_peak_recovery_power(
     )
 
 
+def _observed_available_solar_power(
+    inputs: PlannerInputs, settings: PlannerSettings
+) -> float:
+    """Return measured solar excess independently of controller policy.
+
+    The power-balance form remains useful while the EV is already consuming
+    solar.  It therefore adds current charger load back before removing grid
+    import/battery discharge, and is capped by measured PV production.
+    """
+    grid = 0.0 if abs(inputs.grid_import_w) <= settings.grid_tolerance_w else inputs.grid_import_w
+    battery = (
+        0.0
+        if abs(inputs.battery_power_w) <= settings.grid_tolerance_w
+        else inputs.battery_power_w
+    )
+    headroom = inputs.charger_power_w - grid - battery
+    return max(0.0, min(max(0.0, inputs.solar_power_w), headroom))
+
+
 def _solar_policy_current(
     inputs: PlannerInputs,
     settings: PlannerSettings,
     *,
     below_reserve: bool,
 ) -> tuple[float, float]:
-    """Return a no-grid/no-battery-discharge current and available solar power."""
+    """Return a no-grid/no-battery-discharge current and policy headroom."""
     if inputs.solar_power_w <= 0:
         return 0.0, 0.0
     margin = settings.solar_run_margin_w if inputs.charger_enabled else settings.solar_start_margin_w
@@ -325,6 +349,7 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
     """Calculate one deterministic controller decision."""
     remaining = max(0.0, settings.target_energy_kwh - inputs.session_energy_kwh)
     deadline = _buffered_deadline(inputs.now, settings)
+    observed_solar_w = _observed_available_solar_power(inputs, settings)
     off = dict(
         enable=False,
         current_a=0.0,
@@ -332,6 +357,7 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
         settings=settings,
         deadline=deadline,
         now=inputs.now,
+        available_solar_w=observed_solar_w,
     )
 
     if (
@@ -385,6 +411,7 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             settings.effective_force_current_a,
             remaining,
             settings,
+            available_solar_w=observed_solar_w,
             deadline=deadline,
             now=inputs.now,
         )
@@ -402,7 +429,7 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
     below_reserve = inputs.battery_soc < reserve_threshold
 
     if inputs.mode == "solar_only":
-        current, available_w = _solar_policy_current(
+        current, policy_solar_w = _solar_policy_current(
             inputs, settings, below_reserve=below_reserve
         )
         if current < settings.min_current_a:
@@ -410,7 +437,7 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
                 ControllerState.SOLAR_ONLY,
                 "Solar Only mode is waiting for genuine no-grid, no-battery-discharge headroom.",
                 **off,
-                available_solar_w=available_w,
+                policy_solar_w=policy_solar_w,
             )
         return _decision(
             ControllerState.SOLAR_ONLY,
@@ -419,7 +446,8 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             current,
             remaining,
             settings,
-            available_solar_w=available_w,
+            available_solar_w=observed_solar_w,
+            policy_solar_w=policy_solar_w,
             deadline=deadline,
             now=inputs.now,
         )
@@ -440,6 +468,34 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             remaining,
             settings,
             required_w=settings.max_power_w,
+            available_solar_w=observed_solar_w,
+            deadline=deadline,
+            now=inputs.now,
+        )
+
+    solar_current, policy_solar_w = _solar_policy_current(
+        inputs, settings, below_reserve=below_reserve
+    )
+
+    # Confirmed precedence: genuine no-grid solar overflow remains usable during
+    # a tariff peak.  Peak protection blocks grid/battery charging, not surplus
+    # PV that would otherwise be exported.
+    if in_peak and solar_current >= settings.min_current_a:
+        state = ControllerState.DAYTIME_OVERFLOW if below_reserve else ControllerState.DAYTIME_SOLAR
+        reason = (
+            "Peak protection remains active for grid energy; genuine solar overflow is charging the EV."
+            if below_reserve
+            else "Peak protection remains active for grid energy; solar excess is charging the EV."
+        )
+        return _decision(
+            state,
+            reason,
+            True,
+            solar_current,
+            remaining,
+            settings,
+            available_solar_w=observed_solar_w,
+            policy_solar_w=policy_solar_w,
             deadline=deadline,
             now=inputs.now,
         )
@@ -477,6 +533,7 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             remaining,
             settings,
             required_w=required_w,
+            available_solar_w=observed_solar_w,
             deadline=deadline,
             now=inputs.now,
         )
@@ -498,6 +555,7 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
                 remaining,
                 settings,
                 required_w=required_w,
+                available_solar_w=observed_solar_w,
                 deadline=deadline,
                 now=inputs.now,
             )
@@ -521,6 +579,7 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
                 remaining,
                 settings,
                 required_w=recovery_w,
+                available_solar_w=observed_solar_w,
                 deadline=deadline,
                 now=inputs.now,
             )
@@ -537,13 +596,11 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             stable_current,
             remaining,
             settings,
+            available_solar_w=observed_solar_w,
             deadline=deadline,
             now=inputs.now,
         )
 
-    solar_current, available_w = _solar_policy_current(
-        inputs, settings, below_reserve=below_reserve
-    )
     recovery_current = _requested_current_for_power(recovery_w, settings)
     if recovery_current > solar_current:
         return _decision(
@@ -554,7 +611,8 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             remaining,
             settings,
             required_w=recovery_w,
-            available_solar_w=available_w,
+            available_solar_w=observed_solar_w,
+            policy_solar_w=policy_solar_w,
             deadline=deadline,
             now=inputs.now,
         )
@@ -569,7 +627,7 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             if below_reserve
             else "Battery reserve is achieved, but no-grid solar headroom is below charger minimum."
         )
-        return _decision(state, reason, **off, available_solar_w=available_w)
+        return _decision(state, reason, **off, policy_solar_w=policy_solar_w)
 
     state = ControllerState.DAYTIME_OVERFLOW if below_reserve else ControllerState.DAYTIME_SOLAR
     reason = (
@@ -584,7 +642,8 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
         solar_current,
         remaining,
         settings,
-        available_solar_w=available_w,
+        available_solar_w=observed_solar_w,
+        policy_solar_w=policy_solar_w,
         deadline=deadline,
         now=inputs.now,
     )
