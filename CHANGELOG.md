@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 - 2026-11-23
+
+- Reconciled charger start/stop acknowledgement from physical evidence: configured charging status or connector power above the idle threshold, independent of the Smappee enable switch display.
+- Stop now calls `switch.turn_off` whenever physical charging remains active, even when the enable switch already reports off, and acknowledges only after status is non-charging and power is at or below idle.
+- Start now requires writable-current acknowledgement before `switch.turn_on`, then acknowledges only from physical status/power evidence.
+- Added event-driven reconciliation for vehicle/status, connector power, current, switch and energy-system input changes in addition to regular control cycles and explicit control-state changes.
+- Preserved bounded acknowledgement timeout, retry/backoff and failed-stop notification, all v0.3.0 policy/session fixes, parked Charger 2 and the Home Assistant 2026.11.2 released-archive gates.
+- Added regressions for the confirmed stale-off switch behaviour and controlled 6 A B→C/~1.4 kW start and C→B/0 W stop sequence.
+
 ## 0.3.0 - 2026-11-23
 
 - Restored migration-safe measurement metadata for Remaining Session Energy Allowance while preserving the established unique ID and historical statistics continuity.

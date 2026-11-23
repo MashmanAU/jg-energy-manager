@@ -42,11 +42,14 @@ class ActuatorState:
             self.last_command_result = "observe_only"
 
     def can_attempt(self, now: datetime, *, safety_stop: bool = False) -> bool:
+        """Return whether a new service call may be issued.
+
+        Safety stops bypass the ordinary command interval in the coordinator,
+        but never bypass an in-flight acknowledgement or retry backoff.
+        """
         retry = self._parse(self.next_retry_at)
         if retry is not None and now < retry:
             return False
-        if safety_stop:
-            return True
         return self.pending_since is None
 
     def begin(
@@ -85,18 +88,25 @@ class ActuatorState:
         now: datetime,
         *,
         current_a: float | None,
-        enabled: bool,
+        physical_charging: bool,
         deadband_a: float,
         acknowledgement_timeout_s: float,
-    ) -> None:
-        """Acknowledge commands from observed entities or time them out."""
+    ) -> str | None:
+        """Reconcile commands against current and physical charger evidence.
+
+        The charger's enable-switch state is deliberately not used: Smappee can
+        report that switch as off while EVCC status and power prove charging.
+        """
         if self.pending_since is None:
-            return
+            return None
         current_ok = self.pending_current_a is None or (
             current_a is not None
             and abs(current_a - self.pending_current_a) < max(deadband_a, 0.05)
         )
-        enabled_ok = self.pending_enabled is None or enabled == self.pending_enabled
+        enabled_ok = (
+            self.pending_enabled is None
+            or physical_charging == self.pending_enabled
+        )
         if current_ok and enabled_ok:
             self.healthy = True
             self.status = "acknowledged"
@@ -110,7 +120,7 @@ class ActuatorState:
             self.pending_current_a = None
             self.pending_enabled = None
             self.pending_since = None
-            return
+            return "acknowledged"
 
         pending = self._parse(self.pending_since)
         if (
@@ -118,6 +128,8 @@ class ActuatorState:
             and (now - pending).total_seconds() >= acknowledgement_timeout_s
         ):
             self.record_failure(now, "Charger command acknowledgement timed out")
+            return "failed"
+        return None
 
     def cancel_pending_for_reduction(self, requested_current_a: float) -> None:
         """Allow a safer reduction to supersede a pending higher command."""

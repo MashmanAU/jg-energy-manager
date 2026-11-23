@@ -9,6 +9,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_ON
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
@@ -92,6 +93,26 @@ def _csv_states(value: str) -> set[str]:
 def _float_state(state: State | None) -> float | None:
     if state is None or state.state in {"unknown", "unavailable", "none", ""}:
         return None
+
+
+def _is_physical_charging(
+    *,
+    status: str | None,
+    status_valid: bool,
+    charger_power_w: float | None,
+    charging_states: str,
+    idle_power_w: float,
+) -> bool:
+    """Return physical charging evidence independently of switch state."""
+    status_charging = bool(
+        status_valid
+        and status is not None
+        and status.casefold() in _csv_states(charging_states)
+    )
+    power_charging = bool(
+        charger_power_w is not None and charger_power_w > idle_power_w
+    )
+    return status_charging or power_charging
     try:
         return float(state.state)
     except (TypeError, ValueError):
@@ -135,6 +156,31 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_shutdown(self) -> None:
         await self.store.async_save(self.runtime.as_dict())
+
+    def async_start_reconciliation(self):
+        """Refresh promptly whenever an input can change control reconciliation."""
+        entity_ids = {
+            self.settings.get(key)
+            for key in (
+                CONF_BATTERY_SOC_ENTITY,
+                CONF_BATTERY_POWER_ENTITY,
+                CONF_GRID_POWER_ENTITY,
+                CONF_SOLAR_POWER_ENTITY,
+                CONF_CHARGER_STATUS_ENTITY,
+                CONF_CHARGER_POWER_ENTITY,
+                CONF_CHARGER_ENERGY_ENTITY,
+                CONF_CHARGER_ENABLE_ENTITY,
+                CONF_CHARGER_CURRENT_ENTITY,
+            )
+            if self.settings.get(key)
+        }
+
+        async def _async_reconcile(_event) -> None:
+            await self.async_request_refresh()
+
+        return async_track_state_change_event(
+            self.hass, sorted(entity_ids), _async_reconcile
+        )
 
     def planner_settings(self) -> PlannerSettings:
         s = self.settings
@@ -195,12 +241,14 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if status_valid
             else self.runtime.was_connected
         )
-        charging = (
-            status.casefold() in _csv_states(self.settings[CONF_CHARGING_STATES])
-            if status_valid
-            else self.runtime.was_charging
+        switch_enabled = bool(enable_state and enable_state.state == STATE_ON)
+        physical_charging = _is_physical_charging(
+            status=status,
+            status_valid=status_valid,
+            charger_power_w=charger_power,
+            charging_states=self.settings[CONF_CHARGING_STATES],
+            idle_power_w=float(self.settings[CONF_IDLE_POWER_W]),
         )
-        charger_enabled = bool(enable_state and enable_state.state == STATE_ON)
         grid_import = (
             -grid_raw
             if grid_raw is not None
@@ -215,23 +263,29 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         ack_timeout = max(90.0, 3.0 * float(self.settings[CONF_CONTROL_INTERVAL_S]))
-        self.actuator.observe(
+        pending_enable = self.actuator.pending_enabled
+        acknowledgement = self.actuator.observe(
             now,
             current_a=current_state,
-            enabled=charger_enabled,
+            physical_charging=physical_charging,
             deadband_a=float(self.settings[CONF_COMMAND_DEADBAND_A]),
             acknowledgement_timeout_s=ack_timeout,
         )
+        if acknowledgement == "failed" and pending_enable is False:
+            await self._async_notify_failed_stop(
+                self.actuator.last_command_error
+                or "Physical charging did not stop before acknowledgement timeout"
+            )
 
         update_session(
             self.runtime,
             SessionSample(
                 now=now,
                 connected=connected,
-                charging=charging,
+                charging=physical_charging,
                 charger_power_w=charger_power or 0.0,
                 energy_total_kwh=energy_total,
-                charger_enabled=charger_enabled,
+                charger_enabled=physical_charging,
                 requesting_charge=bool(
                     self._last_decision
                     and self._last_decision.should_enable
@@ -273,7 +327,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 charger_power_w=charger_power or 0.0,
                 charger_current_a=current_state or 0.0,
                 session_energy_kwh=self.runtime.session_energy_kwh,
-                charger_enabled=charger_enabled,
+                charger_enabled=physical_charging,
                 vehicle_satisfied=self.runtime.vehicle_satisfied,
                 mode=self.runtime.override,
                 inputs_valid=inputs_valid,
@@ -294,7 +348,8 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._async_apply_decision(
             decision,
             now=now,
-            charger_enabled=charger_enabled,
+            switch_enabled=switch_enabled,
+            physical_charging=physical_charging,
             current_state=current_state,
         )
         await self._async_maybe_save(now)
@@ -325,9 +380,10 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "charger_energy_total_kwh": energy_total,
             "charger_current_a": current_state,
             "charger_status": status,
-            "charger_enabled": charger_enabled,
+            "charger_enabled": switch_enabled,
+            "physical_charging": physical_charging,
             "connected": connected,
-            "charging": charging,
+            "charging": physical_charging,
             "session_energy_kwh": self.runtime.session_energy_kwh,
             "observe_only": self.runtime.observe_only,
             "controller_enabled": self.runtime.controller_enabled,
@@ -343,7 +399,8 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         decision: Decision,
         *,
         now: datetime,
-        charger_enabled: bool,
+        switch_enabled: bool,
+        physical_charging: bool,
         current_state: float | None,
     ) -> None:
         if self.runtime.observe_only:
@@ -356,7 +413,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if not decision.should_enable:
             self.actuator.cancel_pending_current()
-            if charger_enabled and self.actuator.can_attempt(now, safety_stop=True):
+            if physical_charging and self.actuator.can_attempt(now, safety_stop=True):
                 ok = await self._async_command_turn(False, now, safety_stop=True)
                 if ok:
                     self.actuator.begin(now, requested_enabled=False)
@@ -364,20 +421,20 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         requested = decision.requested_current_a
         self.actuator.cancel_pending_for_reduction(requested)
-        decreasing = bool(current_state is not None and requested < current_state)
-        last_command_at = self.actuator._parse(self.actuator.last_command_at)
-        if (
-            not decreasing
-            and last_command_at is not None
-            and (now - last_command_at).total_seconds()
-            < float(self.settings[CONF_MIN_COMMAND_INTERVAL_S])
-        ):
-            return
         if not self.actuator.can_attempt(now):
             return
 
         deadband = float(self.settings[CONF_COMMAND_DEADBAND_A])
         if current_state is None or abs(current_state - requested) >= deadband:
+            decreasing = bool(current_state is not None and requested < current_state)
+            last_command_at = self.actuator._parse(self.actuator.last_command_at)
+            if (
+                not decreasing
+                and last_command_at is not None
+                and (now - last_command_at).total_seconds()
+                < float(self.settings[CONF_MIN_COMMAND_INTERVAL_S])
+            ):
+                return
             if not await self._async_command_current(requested, now):
                 return
             self.actuator.begin(now, requested_current_a=requested)
@@ -386,10 +443,12 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             else:
                 self._last_increase_at = now
             # Require the writable current entity to acknowledge before enabling.
-            if not charger_enabled:
+            if not physical_charging:
                 return
 
-        if not charger_enabled and self.actuator.can_attempt(now):
+        # The switch display is not authoritative. Start is needed whenever the
+        # requested current is acknowledged but status/power show no charging.
+        if not physical_charging and self.actuator.can_attempt(now):
             if await self._async_command_turn(True, now):
                 self.actuator.begin(now, requested_enabled=True)
 

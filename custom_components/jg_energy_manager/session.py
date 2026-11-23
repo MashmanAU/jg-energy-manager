@@ -146,8 +146,7 @@ def update_session(
             rt.session_had_charging = True
 
         credible_no_demand = bool(
-            sample.charger_enabled
-            and sample.requesting_charge
+            sample.requesting_charge
             and rt.session_had_charging
             and not sample.charging
             and sample.charger_power_w < settings.idle_power_w

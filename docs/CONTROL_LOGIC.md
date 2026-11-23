@@ -1,4 +1,4 @@
-# Control logic - v0.3.0
+# Control logic - v0.3.1
 
 ## Safety and session boundaries
 
@@ -32,7 +32,9 @@ Early-full detection requires confirmed active charging during the session follo
 
 ## Live actuator boundary
 
-Current and enable services are issued only after deadband, dwell and command-interval checks. A current command must be observed on the writable current entity before an idle charger is enabled. Service failures and missing acknowledgements set actuator health, retain the planner output, and retry with bounded exponential backoff. Failed safety-stop commands also create a persistent notification.
+Current and enable services are issued only after deadband, dwell and command-interval checks. A current command must be observed on the writable current entity before an idle charger is enabled. Physical charging is derived from configured charging status **or** connector power above the idle threshold; the Smappee enable-switch display is not treated as authoritative.
+
+A start acknowledges only after physical status/power confirms charging. A stop is issued whenever physical charging remains active—even if the switch already displays off—and acknowledges only when status is no longer charging **and** connector power is at or below idle. Vehicle/status, power, current, switch and energy-input changes request prompt reconciliation, supplemented by regular control cycles. Service failures and missing acknowledgements set actuator health, retain the planner output, and retry with bounded exponential backoff. Failed safety-stop commands also create a persistent notification.
 
 ## Operating modes
 
@@ -41,6 +43,6 @@ Current and enable services are issued only after deadband, dwell and command-in
 - **Solar Only** - genuine no-grid, no-battery-discharge charging only; deadline recovery is disabled.
 - **Off** - stop charging.
 
-## Explicitly excluded from v0.3.0
+## Explicitly excluded from v0.3.1
 
 There is no site import-limit controller, AlphaESS write control or automatic second-charger actuation. Charger 2 remains parked with diagnostic mappings only.

@@ -28,7 +28,7 @@ def test_issued_current_is_not_successful_until_observed_acknowledgement():
     state.observe(
         now() + timedelta(seconds=30),
         current_a=12.0,
-        enabled=True,
+        physical_charging=True,
         deadband_a=0.2,
         acknowledgement_timeout_s=90,
     )
@@ -43,7 +43,7 @@ def test_missing_acknowledgement_marks_failure_and_backs_off():
     state.observe(
         now() + timedelta(seconds=91),
         current_a=6.0,
-        enabled=True,
+        physical_charging=True,
         deadband_a=0.2,
         acknowledgement_timeout_s=90,
     )
@@ -71,3 +71,44 @@ def test_safer_current_reduction_supersedes_pending_higher_command():
     state.cancel_pending_for_reduction(12.0)
     assert state.pending_since is None
     assert state.can_attempt(now())
+
+
+def test_start_acknowledges_only_from_physical_charging_not_switch_display():
+    state = ActuatorState()
+    state.begin(now(), requested_enabled=True)
+    assert state.observe(
+        now() + timedelta(seconds=5),
+        current_a=6.0,
+        physical_charging=False,
+        deadband_a=0.2,
+        acknowledgement_timeout_s=90,
+    ) is None
+    assert state.pending_enabled is True
+    assert state.observe(
+        now() + timedelta(seconds=10),
+        current_a=6.0,
+        physical_charging=True,
+        deadband_a=0.2,
+        acknowledgement_timeout_s=90,
+    ) == "acknowledged"
+
+
+def test_stop_requires_status_not_charging_and_power_at_or_below_idle():
+    state = ActuatorState()
+    state.begin(now(), requested_enabled=False)
+    # Physical charging stays true if either status is charging or power is high.
+    assert state.observe(
+        now() + timedelta(seconds=5),
+        current_a=6.0,
+        physical_charging=True,
+        deadband_a=0.2,
+        acknowledgement_timeout_s=90,
+    ) is None
+    assert state.pending_enabled is False
+    assert state.observe(
+        now() + timedelta(seconds=10),
+        current_a=6.0,
+        physical_charging=False,
+        deadband_a=0.2,
+        acknowledgement_timeout_s=90,
+    ) == "acknowledged"

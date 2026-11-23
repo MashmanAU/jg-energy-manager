@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "jg_energy_manager"
 NAME: Final = "JG Energy Manager"
-VERSION: Final = "0.3.0"
+VERSION: Final = "0.3.1"
 PLATFORMS: Final = ["binary_sensor", "button", "select", "sensor", "switch"]
 
 CONF_NAME: Final = "name"

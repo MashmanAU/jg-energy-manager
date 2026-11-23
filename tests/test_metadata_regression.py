@@ -66,3 +66,21 @@ def test_config_entry_migration_adds_charging_states_without_replacing_ids():
     assert "CONF_CHARGING_STATES" in source
     entity_source = (ROOT / "custom_components" / "jg_energy_manager" / "entity.py").read_text()
     assert 'f"{coordinator.config_entry.entry_id}_{key}"' in entity_source
+
+
+def test_live_reconciliation_tracks_all_control_relevant_input_entities():
+    source = (ROOT / "custom_components" / "jg_energy_manager" / "coordinator.py").read_text()
+    assert "async_track_state_change_event" in source
+    for constant in (
+        "CONF_CHARGER_STATUS_ENTITY",
+        "CONF_CHARGER_POWER_ENTITY",
+        "CONF_CHARGER_CURRENT_ENTITY",
+        "CONF_CHARGER_ENABLE_ENTITY",
+        "CONF_CHARGER_ENERGY_ENTITY",
+        "CONF_BATTERY_SOC_ENTITY",
+        "CONF_GRID_POWER_ENTITY",
+        "CONF_SOLAR_POWER_ENTITY",
+    ):
+        assert constant in source
+    init_source = (ROOT / "custom_components" / "jg_energy_manager" / "__init__.py").read_text()
+    assert "async_start_reconciliation" in init_source

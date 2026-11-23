@@ -18,6 +18,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: JGEnergyConfigEntry) -> 
     await coordinator.async_load_runtime()
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+    entry.async_on_unload(coordinator.async_start_reconciliation())
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
