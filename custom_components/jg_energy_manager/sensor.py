@@ -108,5 +108,7 @@ class JGEnergySensor(JGEnergyEntity, SensorEntity):
             "vehicle_satisfied": d["vehicle_satisfied"],
             "session_energy_source": self.coordinator.runtime.session_energy_source,
             "inputs_valid": d["inputs_valid"],
+            "input_missing_roles": d["input_missing_roles"],
+            "input_invalid_roles": d["input_invalid_roles"],
             "actuator_status": d["actuator"]["status"],
         }

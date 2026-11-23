@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.2 - 2026-11-23
+
+- Fixed the v0.3.1 numeric-input regression that displaced the float-conversion block and caused every valid numeric Home Assistant state, including zero, to resolve as null after restart/reload.
+- Added an unconditional full snapshot of every configured live input on first setup refresh, reload, every regular control cycle and every event-driven refresh; sampling never depends on a prior state-change callback.
+- Added explicit required/optional role health with exact missing and invalid role names in redacted diagnostics, Input Problem attributes and transition-only logs.
+- Preserved numeric zero, disconnected EVCC state `A` and enable state `off` as valid source states.
+- Added startup/reload regressions using valid pre-existing Home Assistant states with no later events, plus unavailable-to-valid recovery and optional-input degradation coverage.
+- Preserved the v0.3.1 physical start/stop reconciliation, bounded retries/backoff, failed-stop notification, all v0.3.0 policy/session fixes, parked Charger 2 and Home Assistant 2026.11.2 release gates.
+
 ## 0.3.1 - 2026-11-23
 
 - Reconciled charger start/stop acknowledgement from physical evidence: configured charging status or connector power above the idle threshold, independent of the Smappee enable switch display.

@@ -61,7 +61,7 @@ def _load(name):
     return module
 
 
-for dependency in ("const", "runtime", "actuator", "session", "planner"):
+for dependency in ("const", "runtime", "actuator", "input_snapshot", "session", "planner"):
     _load(dependency)
 coordinator = _load("coordinator")
 runtime = sys.modules[f"{PACKAGE}.runtime"]
@@ -103,6 +103,45 @@ def _decision(current=12.0):
         projected_completion=None,
         deadline=None,
     )
+
+
+def test_numeric_state_conversion_preserves_zero_after_restart():
+    assert coordinator._float_state(SimpleNamespace(state="0")) == 0.0
+    assert coordinator._float_state(SimpleNamespace(state="0.0")) == 0.0
+    assert coordinator._float_state(SimpleNamespace(state="6")) == 6.0
+    assert coordinator._float_state(SimpleNamespace(state="unavailable")) is None
+
+
+def test_coordinator_snapshot_reads_preexisting_ha_states_without_listener_event():
+    value = object.__new__(coordinator.JGEnergyCoordinator)
+    value.settings = {
+        const.CONF_BATTERY_SOC_ENTITY: "sensor.battery_soc",
+        const.CONF_BATTERY_POWER_ENTITY: "sensor.battery_power",
+        const.CONF_GRID_POWER_ENTITY: "sensor.grid_power",
+        const.CONF_SOLAR_POWER_ENTITY: "sensor.solar_power",
+        const.CONF_CHARGER_STATUS_ENTITY: "sensor.charger_status",
+        const.CONF_CHARGER_POWER_ENTITY: "sensor.charger_power",
+        const.CONF_CHARGER_ENERGY_ENTITY: "sensor.charger_energy",
+        const.CONF_CHARGER_ENABLE_ENTITY: "switch.charger_enable",
+        const.CONF_CHARGER_CURRENT_ENTITY: "number.charger_current",
+    }
+    existing = {
+        "sensor.battery_soc": SimpleNamespace(state="60"),
+        "sensor.battery_power": SimpleNamespace(state="0"),
+        "sensor.grid_power": SimpleNamespace(state="0"),
+        "sensor.solar_power": SimpleNamespace(state="0"),
+        "sensor.charger_status": SimpleNamespace(state="A"),
+        "sensor.charger_power": SimpleNamespace(state="0"),
+        "sensor.charger_energy": SimpleNamespace(state="100"),
+        "switch.charger_enable": SimpleNamespace(state="off"),
+        "number.charger_current": SimpleNamespace(state="6"),
+    }
+    value.hass = SimpleNamespace(states=SimpleNamespace(get=existing.get))
+    first_refresh = coordinator.JGEnergyCoordinator._snapshot_inputs(value)
+    reload_refresh = coordinator.JGEnergyCoordinator._snapshot_inputs(value)
+    assert first_refresh.valid and reload_refresh.valid
+    assert reload_refresh.numeric("charger_power") == 0.0
+    assert reload_refresh.text("charger_status") == "A"
 
 
 def test_failed_current_service_is_contained_and_charger_is_not_enabled():

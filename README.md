@@ -1,12 +1,12 @@
 # JG Energy Manager
 
-> **v0.3.1 release-candidate notice:** this source is not approved for installation or live controller operation until the GitHub **Validate** and **Release** workflows are green for the exact commit/tag. See [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md).
+> **v0.3.2 release-candidate notice:** this source is not approved for installation or live controller operation until the GitHub **Validate** and **Release** workflows are green for the exact commit/tag. See [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md).
 
-A Home Assistant custom integration for deadline-aware EV charging and home-battery-aware solar charging. Version **0.3.1** is designed for a single smart Smappee EV charger with a writable **6-32 A** current setpoint and read-only AlphaESS inputs.
+A Home Assistant custom integration for deadline-aware EV charging and home-battery-aware solar charging. Version **0.3.2** is designed for a single smart Smappee EV charger with a writable **6-32 A** current setpoint and read-only AlphaESS inputs.
 
 > **Safety default:** the integration starts in **Observe Only** mode. It calculates and exposes every proposed action, but does not write to the charger until Observe Only is explicitly turned off.
 
-## v0.3.1 scope
+## v0.3.2 scope
 
 - Post-peak battery-following EV charging without sustained grid import.
 - Buffered-deadline pacing and explicit recovery/impossible-target diagnostics.
@@ -16,6 +16,7 @@ A Home Assistant custom integration for deadline-aware EV charging and home-batt
 - Observe Only commissioning and complete UI configuration.
 - Acknowledged live actuation with bounded retry/backoff and visible actuator health.
 - Physical start/stop reconciliation from EVCC status and connector power, independent of a stale Smappee switch display.
+- Unconditional full input snapshots on setup, reload and every cycle, with zero-safe conversion and exact role-level health diagnostics.
 - Accurate meter-first session accounting, frozen early-full energy and retained last-session results.
 
 See [Control logic](docs/CONTROL_LOGIC.md) and [configuration](docs/CONFIGURATION.md).
@@ -82,7 +83,7 @@ The automatic priority is deliberately deterministic:
 6. At the floor -> continuously pace the remainder to the buffered deadline.
 7. Daytime -> battery-priority overflow below reserve, then EV-priority no-grid solar above reserve.
 
-See [Control logic](docs/CONTROL_LOGIC.md) for formulas, edge cases and the session model, and [v0.3.1 requirement traceability](docs/REQUIREMENTS.md) for scope coverage.
+See [Control logic](docs/CONTROL_LOGIC.md) for formulas, edge cases and the session model, and [v0.3.2 requirement traceability](docs/REQUIREMENTS.md) for scope coverage.
 
 ## Entities created
 
@@ -121,12 +122,12 @@ From Windows PowerShell:
 powershell.exe -ExecutionPolicy Bypass -File ".\publish.ps1" -RepositoryPath "C:\path\to\jg-energy-manager"
 ```
 
-The script validates versions and JSON, compiles Python, runs tests, scans for likely secrets, builds release ZIPs, commits changes, tags `v0.3.1`, and pushes `main` plus the tag to `https://github.com/MashmanAU/jg-energy-manager.git`. Use `-NoPush` for a local validation/package run.
+The script validates versions and JSON, compiles Python, runs tests, scans for likely secrets, builds release ZIPs, commits changes, tags `v0.3.2`, and pushes `main` plus the tag to `https://github.com/MashmanAU/jg-energy-manager.git`. Use `-NoPush` for a local validation/package run.
 
 ## Important limitations
 
 - **No AlphaESS write control:** battery SOC and optional battery power are read-only inputs.
 - **No vehicle SOC:** the session target is an upper bound, not a known vehicle requirement.
-- **Second charger:** configuration only; no automatic actuation in v0.3.1.
+- **Second charger:** configuration only; no automatic actuation in v0.3.2.
 - **Single controller instance per charger:** do not run EVCC or another automation against the same Smappee enable/current entities at the same time.
 - This software controls charging equipment through Home Assistant. Commission in Observe Only mode and confirm electrical limits against the charger installation.

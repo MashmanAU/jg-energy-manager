@@ -61,6 +61,16 @@ class JGInputHealthSensor(JGEnergyEntity, BinarySensorEntity):
     def is_on(self) -> bool:
         return not bool(self.coordinator.data["inputs_valid"])
 
+    @property
+    def extra_state_attributes(self):
+        """Expose actionable roles without leaking configured entity IDs."""
+        data = self.coordinator.data
+        return {
+            "missing_roles": data["input_missing_roles"],
+            "invalid_roles": data["input_invalid_roles"],
+            "degraded_optional_roles": data["input_degraded_optional_roles"],
+        }
+
 
 class JGActuatorHealthSensor(JGEnergyEntity, BinarySensorEntity):
     _attr_translation_key = "actuator_health"

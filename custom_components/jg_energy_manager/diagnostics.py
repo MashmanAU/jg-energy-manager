@@ -66,6 +66,10 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
         },
         "inputs": {
             "input_health": coordinator.data["inputs_valid"],
+            "missing_roles": coordinator.data["input_missing_roles"],
+            "invalid_roles": coordinator.data["input_invalid_roles"],
+            "degraded_optional_roles": coordinator.data["input_degraded_optional_roles"],
+            "role_health": coordinator.data["input_role_health"],
             "connected": coordinator.data["connected"],
             "charging": coordinator.data["charging"],
             "charger_status": coordinator.data["charger_status"],

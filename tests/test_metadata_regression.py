@@ -84,3 +84,15 @@ def test_live_reconciliation_tracks_all_control_relevant_input_entities():
         assert constant in source
     init_source = (ROOT / "custom_components" / "jg_energy_manager" / "__init__.py").read_text()
     assert "async_start_reconciliation" in init_source
+
+
+def test_input_problem_and_diagnostics_expose_redacted_role_failures():
+    binary_source = (ROOT / "custom_components" / "jg_energy_manager" / "binary_sensor.py").read_text()
+    diagnostics_source = (ROOT / "custom_components" / "jg_energy_manager" / "diagnostics.py").read_text()
+    coordinator_source = (ROOT / "custom_components" / "jg_energy_manager" / "coordinator.py").read_text()
+    for key in ("input_missing_roles", "input_invalid_roles", "input_degraded_optional_roles"):
+        assert key in binary_source
+        assert key in coordinator_source
+    assert '"role_health"' in diagnostics_source
+    assert "redacted_health" in coordinator_source
+    assert "snapshot_inputs" in coordinator_source

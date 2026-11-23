@@ -8,6 +8,7 @@ runtime where Home Assistant is intentionally unavailable.
 from __future__ import annotations
 
 import asyncio
+import importlib
 import importlib.util
 import json
 import os
@@ -27,6 +28,7 @@ if os.environ.get("JG_REAL_HA_TEST") != "1":
 homeassistant = pytest.importorskip("homeassistant")
 probatio = pytest.importorskip("probatio")
 from homeassistant.helpers import config_validation as cv  # noqa: E402
+from homeassistant.core import State  # noqa: E402
 from homeassistant.components.sensor import SensorStateClass  # noqa: E402
 
 ROOT = Path(__file__).parents[1]
@@ -48,11 +50,14 @@ def _load_release(tmp_path: Path):
     )
 
     package_name = "jg_energy_manager_release_test"
+    for loaded_name in list(sys.modules):
+        if loaded_name == package_name or loaded_name.startswith(f"{package_name}."):
+            sys.modules.pop(loaded_name)
     package = ModuleType(package_name)
     package.__path__ = [str(release)]
     sys.modules[package_name] = package
 
-    for module_name in ("const", "config_flow"):
+    for module_name in ("const", "input_snapshot", "config_flow"):
         full_name = f"{package_name}.{module_name}"
         spec = importlib.util.spec_from_file_location(
             full_name, release / f"{module_name}.py"
@@ -219,3 +224,33 @@ def test_built_hacs_archive_completes_real_home_assistant_config_flow(tmp_path):
     )
     assert remaining.state_class is SensorStateClass.MEASUREMENT
     assert remaining.device_class is None
+
+
+def test_built_archive_samples_preexisting_zero_states_without_events(tmp_path):
+    """Guard the v0.3.1 startup/reload regression in the released archive."""
+    flow_module = _load_release(tmp_path)
+    package = flow_module.__package__
+    coordinator = importlib.import_module(f"{package}.coordinator")
+    snapshot_module = sys.modules[f"{package}.input_snapshot"]
+
+    assert coordinator._float_state(State("sensor.zero", "0")) == 0.0
+    roles = (
+        snapshot_module.InputRole("charger_status", "status", "text"),
+        snapshot_module.InputRole("charger_power", "power", "numeric"),
+        snapshot_module.InputRole("charger_current", "current", "numeric"),
+    )
+    settings = {
+        "status": "sensor.status",
+        "power": "sensor.power",
+        "current": "number.current",
+    }
+    existing = {
+        "sensor.status": State("sensor.status", "A"),
+        "sensor.power": State("sensor.power", "0"),
+        "number.current": State("number.current", "6"),
+    }
+    first = snapshot_module.snapshot_inputs(settings, roles, existing.get)
+    reload = snapshot_module.snapshot_inputs(settings, roles, existing.get)
+    assert first.valid and reload.valid
+    assert reload.numeric("charger_power") == 0.0
+    assert reload.text("charger_status") == "A"

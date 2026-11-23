@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 DOMAIN_DIR = ROOT / "custom_components" / "jg_energy_manager"
-EXPECTED_VERSION = "0.3.1"
+EXPECTED_VERSION = "0.3.2"
 
 
 def fail(message: str) -> None:
@@ -41,6 +41,7 @@ def main() -> None:
         DOMAIN_DIR / "actuator.py",
         DOMAIN_DIR / "session.py",
         DOMAIN_DIR / "runtime.py",
+        DOMAIN_DIR / "input_snapshot.py",
         DOMAIN_DIR / "planner.py",
         DOMAIN_DIR / "strings.json",
         DOMAIN_DIR / "translations" / "en.json",

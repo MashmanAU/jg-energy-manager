@@ -1,8 +1,10 @@
-# Control logic - v0.3.1
+# Control logic - v0.3.2
 
 ## Safety and session boundaries
 
 The energy target is a maximum per plug-in session, not a mandatory vehicle requirement. Disconnect, reset, invalid input and vehicle no-demand/full handling remain fail-safe. When the vehicle stops accepting power before the allowance is used, all deadline recovery stops. Observe Only continues calculations and diagnostics but sends no commands.
+
+Every setup, reload, scheduled cycle and event-driven refresh reads a complete snapshot directly from the Home Assistant state machine. A state-change event is an acceleration signal, not the source of truth. Numeric zero, disconnected status `A` and switch `off` remain valid states. Required missing/invalid roles cause fail-safe stop and are named—without entity IDs—in diagnostics, logs and the Input Problem entity.
 
 ## Buffered deadline
 
@@ -43,6 +45,6 @@ A start acknowledges only after physical status/power confirms charging. A stop 
 - **Solar Only** - genuine no-grid, no-battery-discharge charging only; deadline recovery is disabled.
 - **Off** - stop charging.
 
-## Explicitly excluded from v0.3.1
+## Explicitly excluded from v0.3.2
 
 There is no site import-limit controller, AlphaESS write control or automatic second-charger actuation. Charger 2 remains parked with diagnostic mappings only.

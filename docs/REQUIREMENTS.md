@@ -1,4 +1,4 @@
-# v0.3.1 requirement traceability
+# v0.3.2 requirement traceability
 
 | Requirement | Implementation / gate |
 |---|---|
@@ -15,6 +15,9 @@
 | Resilient live actuation | Service exception containment, acknowledgement, bounded backoff, no enable-before-current-ack and failed-stop notification |
 | Stale-off Smappee switch | Physical charging = charging status OR power above idle; stop and acknowledgement use physical evidence, not displayed switch state |
 | Prompt reconciliation | State-change listeners for charger and energy inputs plus control changes and regular cycles |
+| Restart/reload source snapshot | Direct full state-machine snapshot on first refresh, reload and every regular/event-driven cycle |
+| Zero-safe conversion | Numeric `0`/`0.0`, status `A` and switch `off` remain valid input values |
+| Actionable input health | Exact required missing/invalid role names, with entity IDs redacted, in diagnostics/logs/Input Problem attributes |
 | Actuator diagnostics | Problem binary sensor, last acknowledged current/result/error and expanded redacted diagnostics |
 | Config flow compatibility | v2 migration, charging-state field, Probatio serialisation and released HACS archive flow |
 | Charger 2 exclusion | `parked_no_active_control`; no second actuator path |

@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .actuator import ActuatorState
+from .input_snapshot import InputRole, InputSnapshot, snapshot_inputs
 from .const import (
     BATTERY_POSITIVE_CHARGE,
     CONF_BATTERY_POWER_ENTITY,
@@ -81,6 +82,19 @@ from .session import SessionSample, SessionSettings, update_session
 
 _LOGGER = logging.getLogger(__name__)
 
+INPUT_ROLES = (
+    InputRole("battery_soc", CONF_BATTERY_SOC_ENTITY, "numeric"),
+    InputRole("battery_power", CONF_BATTERY_POWER_ENTITY, "numeric", required=False),
+    InputRole("grid_power", CONF_GRID_POWER_ENTITY, "numeric"),
+    InputRole("solar_power", CONF_SOLAR_POWER_ENTITY, "numeric"),
+    InputRole("charger_status", CONF_CHARGER_STATUS_ENTITY, "text"),
+    InputRole("charger_power", CONF_CHARGER_POWER_ENTITY, "numeric"),
+    # Energy has an integration fallback and is therefore a degraded, not fatal, input.
+    InputRole("charger_energy", CONF_CHARGER_ENERGY_ENTITY, "numeric", required=False),
+    InputRole("charger_enable", CONF_CHARGER_ENABLE_ENTITY, "text"),
+    InputRole("charger_current", CONF_CHARGER_CURRENT_ENTITY, "numeric"),
+)
+
 
 def _parse_time(value: str):
     return datetime.strptime(value[:8], "%H:%M:%S").time()
@@ -91,7 +105,12 @@ def _csv_states(value: str) -> set[str]:
 
 
 def _float_state(state: State | None) -> float | None:
+    """Convert a numeric HA state, preserving zero (legacy helper/tests)."""
     if state is None or state.state in {"unknown", "unavailable", "none", ""}:
+        return None
+    try:
+        return float(state.state)
+    except (TypeError, ValueError):
         return None
 
 
@@ -113,10 +132,6 @@ def _is_physical_charging(
         charger_power_w is not None and charger_power_w > idle_power_w
     )
     return status_charging or power_charging
-    try:
-        return float(state.state)
-    except (TypeError, ValueError):
-        return None
 
 
 class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -147,6 +162,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_saved_at: datetime | None = None
         self._last_increase_at: datetime | None = None
         self._last_decrease_at: datetime | None = None
+        self._last_input_issue_signature: tuple[tuple[str, ...], tuple[str, ...]] | None = None
 
     async def async_load_runtime(self) -> None:
         stored = await self.store.async_load()
@@ -219,29 +235,49 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         entity_id = self.settings.get(key)
         return self.hass.states.get(entity_id) if entity_id else None
 
+    def _snapshot_inputs(self) -> InputSnapshot:
+        """Unconditionally read all configured inputs from the current HA states."""
+        return snapshot_inputs(self.settings, INPUT_ROLES, self.hass.states.get)
+
+    def _log_input_health(self, snapshot: InputSnapshot) -> None:
+        signature = (tuple(snapshot.missing_roles), tuple(snapshot.invalid_roles))
+        if signature == self._last_input_issue_signature:
+            return
+        self._last_input_issue_signature = signature
+        if snapshot.valid:
+            _LOGGER.info("JG Energy Manager input snapshot recovered; all required roles are valid")
+            return
+        # Entity IDs remain redacted; role names provide actionable diagnosis.
+        _LOGGER.warning(
+            "JG Energy Manager input snapshot invalid; missing_roles=%s invalid_roles=%s",
+            snapshot.missing_roles,
+            snapshot.invalid_roles,
+        )
+
     async def _async_update_data(self) -> dict[str, Any]:
         now = dt_util.now()
-        battery_soc = _float_state(self._state(CONF_BATTERY_SOC_ENTITY))
-        grid_raw = _float_state(self._state(CONF_GRID_POWER_ENTITY))
-        solar_power = _float_state(self._state(CONF_SOLAR_POWER_ENTITY))
-        battery_power_raw = _float_state(self._state(CONF_BATTERY_POWER_ENTITY))
-        charger_power = _float_state(self._state(CONF_CHARGER_POWER_ENTITY))
-        energy_total = _float_state(self._state(CONF_CHARGER_ENERGY_ENTITY))
-        status_state = self._state(CONF_CHARGER_STATUS_ENTITY)
-        enable_state = self._state(CONF_CHARGER_ENABLE_ENTITY)
-        current_state = _float_state(self._state(CONF_CHARGER_CURRENT_ENTITY))
+        # This is a complete state-machine snapshot on first refresh, reload,
+        # every event-driven refresh and every scheduled control cycle. It never
+        # depends on a listener callback having previously fired.
+        snapshot = self._snapshot_inputs()
+        self._log_input_health(snapshot)
+        battery_soc = snapshot.numeric("battery_soc")
+        grid_raw = snapshot.numeric("grid_power")
+        solar_power = snapshot.numeric("solar_power")
+        battery_power_raw = snapshot.numeric("battery_power")
+        charger_power = snapshot.numeric("charger_power")
+        energy_total = snapshot.numeric("charger_energy")
+        status = snapshot.text("charger_status")
+        enable_value = snapshot.text("charger_enable")
+        current_state = snapshot.numeric("charger_current")
 
-        status = status_state.state if status_state else None
-        status_valid = bool(
-            status is not None
-            and status.casefold() not in {"unknown", "unavailable", "none", ""}
-        )
+        status_valid = snapshot.readings["charger_status"].health == "valid"
         connected = (
             status.casefold() in _csv_states(self.settings[CONF_CONNECTED_STATES])
             if status_valid
             else self.runtime.was_connected
         )
-        switch_enabled = bool(enable_state and enable_state.state == STATE_ON)
+        switch_enabled = enable_value == STATE_ON
         physical_charging = _is_physical_charging(
             status=status,
             status_valid=status_valid,
@@ -300,21 +336,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ),
         )
 
-        required_values = (
-            battery_soc,
-            grid_import,
-            solar_power,
-            charger_power,
-            current_state,
-        )
-        inputs_valid = (
-            all(value is not None for value in required_values)
-            and status_valid
-            and bool(
-                enable_state
-                and enable_state.state not in {"unknown", "unavailable", "none", ""}
-            )
-        )
+        inputs_valid = snapshot.valid
         decision = calculate_decision(
             PlannerInputs(
                 now=now,
@@ -390,6 +412,10 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "override": self.runtime.override,
             "vehicle_satisfied": self.runtime.vehicle_satisfied,
             "inputs_valid": inputs_valid,
+            "input_missing_roles": snapshot.missing_roles,
+            "input_invalid_roles": snapshot.invalid_roles,
+            "input_degraded_optional_roles": snapshot.degraded_optional_roles,
+            "input_role_health": snapshot.redacted_health(),
             "actuator": self.actuator.as_dict(),
             "secondary": secondary,
         }

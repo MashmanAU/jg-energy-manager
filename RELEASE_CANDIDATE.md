@@ -1,4 +1,4 @@
-# JG Energy Manager v0.3.1 — Release Candidate
+# JG Energy Manager v0.3.2 — Release Candidate
 
 **Status: validation candidate only — not approved for installation or live charger control.**
 

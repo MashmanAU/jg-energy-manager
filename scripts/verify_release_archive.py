@@ -17,6 +17,7 @@ EXPECTED_FILES = {
     "actuator.py",
     "session.py",
     "runtime.py",
+    "input_snapshot.py",
     "coordinator.py",
     "sensor.py",
     "manifest.json",
