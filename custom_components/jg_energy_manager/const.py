@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "jg_energy_manager"
 NAME: Final = "JG Energy Manager"
-VERSION: Final = "0.3.2"
+VERSION: Final = "0.3.3"
 PLATFORMS: Final = ["binary_sensor", "button", "select", "sensor", "switch"]
 
 CONF_NAME: Final = "name"
@@ -38,6 +38,7 @@ CONF_MIN_CURRENT_A: Final = "min_current_a"
 CONF_MAX_CURRENT_A: Final = "max_current_a"
 CONF_MAX_CHARGER_POWER_W: Final = "max_charger_power_w"
 CONF_BATTERY_MAX_CHARGE_POWER_W: Final = "battery_max_charge_power_w"
+CONF_BATTERY_DISCHARGE_CONTROL_CEILING_W: Final = "battery_discharge_control_ceiling_w"
 CONF_GRID_TOLERANCE_W: Final = "grid_tolerance_w"
 CONF_CURRENT_STEP_A: Final = "current_step_a"
 CONF_RAMP_UP_STEP_A: Final = "ramp_up_step_a"
@@ -54,6 +55,7 @@ CONF_COMMAND_DEADBAND_A: Final = "command_deadband_a"
 CONF_MIN_COMMAND_INTERVAL_S: Final = "min_command_interval_s"
 CONF_INCREASE_DWELL_S: Final = "increase_dwell_s"
 CONF_DECREASE_DWELL_S: Final = "decrease_dwell_s"
+CONF_BATTERY_RESPONSE_GRACE_S: Final = "battery_response_grace_s"
 CONF_STOP_WHEN_DISABLED: Final = "stop_when_disabled"
 CONF_FAIL_SAFE_STOP: Final = "fail_safe_stop"
 CONF_INITIAL_OBSERVE_ONLY: Final = "initial_observe_only"
@@ -103,6 +105,7 @@ DEFAULTS: Final = {
     CONF_MAX_CURRENT_A: 32.0,
     CONF_MAX_CHARGER_POWER_W: 7360.0,
     CONF_BATTERY_MAX_CHARGE_POWER_W: 5000.0,
+    CONF_BATTERY_DISCHARGE_CONTROL_CEILING_W: 4500.0,
     CONF_GRID_TOLERANCE_W: 100.0,
     CONF_CURRENT_STEP_A: 0.1,
     CONF_RAMP_UP_STEP_A: 1.0,
@@ -119,6 +122,7 @@ DEFAULTS: Final = {
     CONF_MIN_COMMAND_INTERVAL_S: 30,
     CONF_INCREASE_DWELL_S: 120,
     CONF_DECREASE_DWELL_S: 0,
+    CONF_BATTERY_RESPONSE_GRACE_S: 30,
     CONF_STOP_WHEN_DISABLED: True,
     CONF_FAIL_SAFE_STOP: True,
     CONF_INITIAL_OBSERVE_ONLY: True,

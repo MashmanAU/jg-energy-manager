@@ -18,10 +18,12 @@ from .actuator import ActuatorState
 from .input_snapshot import InputRole, InputSnapshot, snapshot_inputs
 from .const import (
     BATTERY_POSITIVE_CHARGE,
+    CONF_BATTERY_DISCHARGE_CONTROL_CEILING_W,
     CONF_BATTERY_POWER_ENTITY,
     CONF_BATTERY_MAX_CHARGE_POWER_W,
     CONF_BATTERY_POWER_SIGN,
     CONF_BATTERY_SOC_ENTITY,
+    CONF_BATTERY_RESPONSE_GRACE_S,
     CONF_CHARGER_CURRENT_ENTITY,
     CONF_CHARGER_ENABLE_ENTITY,
     CONF_CHARGER_ENERGY_ENTITY,
@@ -162,6 +164,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_saved_at: datetime | None = None
         self._last_increase_at: datetime | None = None
         self._last_decrease_at: datetime | None = None
+        self._battery_response_since: datetime | None = None
         self._last_input_issue_signature: tuple[tuple[str, ...], tuple[str, ...]] | None = None
 
     async def async_load_runtime(self) -> None:
@@ -219,6 +222,10 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             max_current_a=float(s[CONF_MAX_CURRENT_A]),
             max_charger_power_w=float(s[CONF_MAX_CHARGER_POWER_W]),
             battery_max_charge_power_w=float(s[CONF_BATTERY_MAX_CHARGE_POWER_W]),
+            battery_discharge_control_ceiling_w=float(
+                s[CONF_BATTERY_DISCHARGE_CONTROL_CEILING_W]
+            ),
+            battery_response_grace_s=float(s[CONF_BATTERY_RESPONSE_GRACE_S]),
             grid_tolerance_w=float(s[CONF_GRID_TOLERANCE_W]),
             current_step_a=float(s[CONF_CURRENT_STEP_A]),
             ramp_up_step_a=float(s[CONF_RAMP_UP_STEP_A]),
@@ -337,6 +344,11 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         inputs_valid = snapshot.valid
+        battery_response_elapsed_s = (
+            max(0.0, (now - self._battery_response_since).total_seconds())
+            if self._battery_response_since is not None
+            else 0.0
+        )
         decision = calculate_decision(
             PlannerInputs(
                 now=now,
@@ -363,9 +375,18 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     or (now - self._last_decrease_at).total_seconds()
                     >= float(self.settings[CONF_DECREASE_DWELL_S])
                 ),
+                battery_power_valid=(
+                    snapshot.readings["battery_power"].health == "valid"
+                ),
+                battery_response_elapsed_s=battery_response_elapsed_s,
             ),
             self.planner_settings(),
         )
+        if decision.battery_response_hold:
+            if self._battery_response_since is None:
+                self._battery_response_since = now
+        else:
+            self._battery_response_since = None
         self._last_decision = decision
         await self._async_apply_decision(
             decision,
@@ -418,6 +439,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "input_role_health": snapshot.redacted_health(),
             "actuator": self.actuator.as_dict(),
             "secondary": secondary,
+            "battery_response_since": self._battery_response_since,
         }
 
     async def _async_apply_decision(

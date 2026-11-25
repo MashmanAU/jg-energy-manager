@@ -12,7 +12,7 @@
       },
       "energy": {
         "title": "Energy inputs",
-        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.3.2.",
+        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.3.3.",
         "data": {
           "battery_soc_entity": "Battery state of charge sensor",
           "battery_power_entity": "Battery power sensor (optional)",
@@ -85,7 +85,8 @@
           "battery_max_charge_power_w": "Battery maximum charge rate",
           "grid_tolerance_w": "Grid import/export tolerance",
           "ramp_up_step_a": "Slow-increase current step",
-          "force_charge_current_a": "Force Charge current"
+          "force_charge_current_a": "Force Charge current",
+          "battery_discharge_control_ceiling_w": "Battery discharge control ceiling"
         },
         "data_description": {
           "solar_start_margin_w": "Export headroom retained before starting.",
@@ -95,7 +96,8 @@
           "battery_max_charge_power_w": "Maximum AlphaESS charging power reserved before sub-reserve solar overflow is offered to the EV.",
           "grid_tolerance_w": "Small grid and battery-power deviations inside this band are ignored to prevent hunting.",
           "ramp_up_step_a": "Maximum current increase after each increase dwell; decreases may occur faster.",
-          "force_charge_current_a": "Current requested in Force Charge mode, capped by the configured electrical limits."
+          "force_charge_current_a": "Current requested in Force Charge mode, capped by the configured electrical limits.",
+          "battery_discharge_control_ceiling_w": "Maximum battery discharge the controller treats as dependable when deciding whether to hold the 6 A charger minimum."
         }
       },
       "control": {
@@ -109,17 +111,19 @@
           "fail_safe_stop": "Stop charger when a critical input is invalid",
           "initial_observe_only": "Default to Observe Only when no runtime state exists",
           "increase_dwell_s": "Increase dwell",
-          "decrease_dwell_s": "Decrease dwell"
+          "decrease_dwell_s": "Decrease dwell",
+          "battery_response_grace_s": "Battery response grace"
         },
         "data_description": {
           "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted.",
           "increase_dwell_s": "Minimum settling time between current increases.",
-          "decrease_dwell_s": "Minimum settling time between current decreases; use 0 for immediate reductions."
+          "decrease_dwell_s": "Minimum settling time between current decreases; use 0 for immediate reductions.",
+          "battery_response_grace_s": "Maximum time to hold 6 A when measured battery headroom can plausibly absorb the grid import."
         }
       },
       "secondary": {
         "title": "Parked second charger",
-        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.2.",
+        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.3.",
         "data": {
           "secondary_enabled": "Configure second charger",
           "secondary_name": "Second charger name",
@@ -229,7 +233,8 @@
           "battery_max_charge_power_w": "Battery maximum charge rate",
           "grid_tolerance_w": "Grid import/export tolerance",
           "ramp_up_step_a": "Slow-increase current step",
-          "force_charge_current_a": "Force Charge current"
+          "force_charge_current_a": "Force Charge current",
+          "battery_discharge_control_ceiling_w": "Battery discharge control ceiling"
         },
         "data_description": {
           "solar_start_margin_w": "Export headroom retained before starting.",
@@ -239,7 +244,8 @@
           "battery_max_charge_power_w": "Maximum AlphaESS charging power reserved before sub-reserve solar overflow is offered to the EV.",
           "grid_tolerance_w": "Small grid and battery-power deviations inside this band are ignored to prevent hunting.",
           "ramp_up_step_a": "Maximum current increase after each increase dwell; decreases may occur faster.",
-          "force_charge_current_a": "Current requested in Force Charge mode, capped by the configured electrical limits."
+          "force_charge_current_a": "Current requested in Force Charge mode, capped by the configured electrical limits.",
+          "battery_discharge_control_ceiling_w": "Maximum battery discharge the controller treats as dependable when deciding whether to hold the 6 A charger minimum."
         }
       },
       "control": {
@@ -253,12 +259,14 @@
           "fail_safe_stop": "Stop charger when a critical input is invalid",
           "initial_observe_only": "Default to Observe Only when no runtime state exists",
           "increase_dwell_s": "Increase dwell",
-          "decrease_dwell_s": "Decrease dwell"
+          "decrease_dwell_s": "Decrease dwell",
+          "battery_response_grace_s": "Battery response grace"
         },
         "data_description": {
           "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted.",
           "increase_dwell_s": "Minimum settling time between current increases.",
-          "decrease_dwell_s": "Minimum settling time between current decreases; use 0 for immediate reductions."
+          "decrease_dwell_s": "Minimum settling time between current decreases; use 0 for immediate reductions.",
+          "battery_response_grace_s": "Maximum time to hold 6 A when measured battery headroom can plausibly absorb the grid import."
         }
       },
       "secondary": {
@@ -273,7 +281,7 @@
         "data_description": {
           "secondary_enabled": "Mappings may be retained for diagnostics; Charger 2 remains parked with no automatic control."
         },
-        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.2."
+        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.3."
       }
     },
     "error": {

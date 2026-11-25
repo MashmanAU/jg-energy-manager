@@ -49,6 +49,8 @@ class PlannerSettings:
     force_charge_current_a: float = 32.0
     max_charger_power_w: float = 7360.0
     battery_max_charge_power_w: float = 5000.0
+    battery_discharge_control_ceiling_w: float = 4500.0
+    battery_response_grace_s: float = 30.0
     grid_tolerance_w: float = 100.0
     current_step_a: float = 0.1
     ramp_up_step_a: float = 1.0
@@ -102,6 +104,8 @@ class PlannerInputs:
     inputs_valid: bool = True
     increase_allowed: bool = True
     decrease_allowed: bool = True
+    battery_power_valid: bool = True
+    battery_response_elapsed_s: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +123,9 @@ class Decision:
     policy_solar_power_w: float
     projected_completion: datetime | None
     deadline: datetime | None
+    battery_response_hold: bool = False
+    battery_discharge_headroom_w: float = 0.0
+    battery_uncovered_import_w: float = 0.0
 
 
 def _in_window(value: time, start: time, end: time) -> bool:
@@ -209,6 +216,9 @@ def _decision(
     available_solar_w: float = 0.0,
     policy_solar_w: float = 0.0,
     deadline: datetime | None = None,
+    battery_response_hold: bool = False,
+    battery_discharge_headroom_w: float = 0.0,
+    battery_uncovered_import_w: float = 0.0,
     now: datetime,
 ) -> Decision:
     current_a = min(settings.effective_max_current_a, max(0.0, current_a))
@@ -227,6 +237,9 @@ def _decision(
             now, remaining, power_w, settings.charging_efficiency
         ),
         deadline=deadline,
+        battery_response_hold=battery_response_hold,
+        battery_discharge_headroom_w=max(0.0, battery_discharge_headroom_w),
+        battery_uncovered_import_w=max(0.0, battery_uncovered_import_w),
     )
 
 
@@ -367,6 +380,8 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
         or settings.ramp_up_step_a <= 0
         or settings.max_charger_power_w < settings.min_power_w
         or settings.battery_max_charge_power_w < 0
+        or settings.battery_discharge_control_ceiling_w < 0
+        or settings.battery_response_grace_s < 0
         or settings.grid_tolerance_w < 0
         or settings.supply_voltage <= 0
         or settings.phases <= 0
@@ -561,7 +576,8 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             )
 
         # Above the floor, ramp toward the highest rate the battery can support
-        # without sustained grid import. Import causes an immediate reduction.
+        # without sustained grid import. Current reductions remain immediate,
+        # but disabling the charger is a separate, battery-headroom-aware step.
         excess_import = max(0.0, inputs.grid_import_w - settings.grid_tolerance_w)
         stable_power = (
             settings.max_power_w
@@ -584,10 +600,64 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
                 now=inputs.now,
             )
         if stable_current < settings.min_current_a:
+            actual_current = (
+                max(0.0, inputs.charger_current_a)
+                if inputs.charger_enabled
+                else max(0.0, inputs.charger_power_w / settings.watts_per_amp)
+            )
+            # Never jump directly from an adjustable rate to off. Reduce to the
+            # charger minimum first so ordinary load tuning remains quick without
+            # unnecessary contactor cycling.
+            if inputs.charger_enabled and actual_current > (
+                settings.min_current_a + settings.current_step_a / 2.0
+            ):
+                return _decision(
+                    ControllerState.POST_PEAK_BATTERY,
+                    "Post-peak current was reduced to the charger minimum before evaluating a stop.",
+                    True,
+                    settings.min_current_a,
+                    remaining,
+                    settings,
+                    available_solar_w=observed_solar_w,
+                    deadline=deadline,
+                    now=inputs.now,
+                )
+
+            battery_discharge_w = max(0.0, inputs.battery_power_w)
+            battery_headroom_w = max(
+                0.0,
+                settings.battery_discharge_control_ceiling_w - battery_discharge_w,
+            )
+            uncovered_import_w = max(0.0, excess_import - battery_headroom_w)
+            can_wait_for_battery = (
+                inputs.charger_enabled
+                and actual_current >= settings.min_current_a - settings.current_step_a / 2.0
+                and inputs.battery_power_valid
+                and battery_discharge_w < settings.battery_discharge_control_ceiling_w
+                and uncovered_import_w <= 0.0
+                and inputs.battery_response_elapsed_s < settings.battery_response_grace_s
+            )
+            if can_wait_for_battery:
+                return _decision(
+                    ControllerState.POST_PEAK_BATTERY,
+                    "Post-peak charging is holding the charger minimum while available battery headroom responds.",
+                    True,
+                    settings.min_current_a,
+                    remaining,
+                    settings,
+                    available_solar_w=observed_solar_w,
+                    deadline=deadline,
+                    battery_response_hold=True,
+                    battery_discharge_headroom_w=battery_headroom_w,
+                    battery_uncovered_import_w=uncovered_import_w,
+                    now=inputs.now,
+                )
             return _decision(
                 ControllerState.POST_PEAK_BATTERY,
-                "Post-peak battery-following is paused while house load settles.",
+                "Post-peak battery-following stopped because minimum-current demand cannot be supported within the battery response limit.",
                 **off,
+                battery_discharge_headroom_w=battery_headroom_w,
+                battery_uncovered_import_w=uncovered_import_w,
             )
         return _decision(
             ControllerState.POST_PEAK_BATTERY,

@@ -208,10 +208,12 @@ def test_built_hacs_archive_completes_real_home_assistant_config_flow(tmp_path):
     assert result["data"]["charging_states"] == "C,charging"
     assert result["data"]["completion_buffer_min"] == 30
     assert result["data"]["battery_max_charge_power_w"] == 5000.0
+    assert result["data"]["battery_discharge_control_ceiling_w"] == 4500.0
     assert result["data"]["grid_tolerance_w"] == 100.0
     assert result["data"]["force_charge_current_a"] == 32.0
     assert result["data"]["increase_dwell_s"] == 120
     assert result["data"]["decrease_dwell_s"] == 0
+    assert result["data"]["battery_response_grace_s"] == 30
 
     # Instantiate release metadata against the real Home Assistant sensor API.
     sensor_module = __import__(

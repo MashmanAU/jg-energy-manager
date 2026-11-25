@@ -1,4 +1,4 @@
-# Control logic - v0.3.2
+# Control logic - v0.3.3
 
 ## Safety and session boundaries
 
@@ -14,7 +14,9 @@ Genuine no-grid solar overflow takes precedence during the peak window. Otherwis
 
 ## Post-peak and overnight battery policy
 
-After peak, while battery SOC is above the overnight floor, the controller starts at minimum current and increases by the configured ramp step after each increase dwell. Grid-import feedback causes a fast reduction or pause, allowing house load to take priority while finding the highest stable battery-supported EV rate.
+After peak, while battery SOC is above the overnight floor, the controller starts at minimum current and increases by the configured ramp step after each increase dwell. Grid-import feedback continues to cause fast, fine-grained current reductions so house load retains priority.
+
+Stopping is evaluated separately from current tuning. If feedback would take the EV below the charger minimum, an active rate above 6 A is reduced to 6 A first. At 6 A, the controller calculates dependable battery headroom as the configured discharge control ceiling (4.5 kW by default) less measured battery discharge. It holds 6 A for the configured grace period only when that headroom can plausibly absorb all import above the grid tolerance. It stops immediately when battery discharge is at/above the ceiling, residual headroom cannot cover the import, battery-power telemetry is invalid, or the grace period expires. Any recovery to a supportable current cancels the hold timer.
 
 At the overnight floor, the remaining allowance is spread over all time to the buffered deadline. The lowest continuous charger rate that preserves feasibility is requested, subject to minimum current, maximum current and charger power limits.
 
@@ -45,6 +47,6 @@ A start acknowledges only after physical status/power confirms charging. A stop 
 - **Solar Only** - genuine no-grid, no-battery-discharge charging only; deadline recovery is disabled.
 - **Off** - stop charging.
 
-## Explicitly excluded from v0.3.2
+## Explicitly excluded from v0.3.3
 
 There is no site import-limit controller, AlphaESS write control or automatic second-charger actuation. Charger 2 remains parked with diagnostic mappings only.

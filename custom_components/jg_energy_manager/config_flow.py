@@ -224,6 +224,7 @@ def _limits_schema(defaults: dict[str, Any]) -> vol.Schema:
             CONF_MAX_CURRENT_A,  # noqa: F405
             CONF_MAX_CHARGER_POWER_W,  # noqa: F405
             CONF_BATTERY_MAX_CHARGE_POWER_W,  # noqa: F405
+            CONF_BATTERY_DISCHARGE_CONTROL_CEILING_W,  # noqa: F405
             CONF_GRID_TOLERANCE_W,  # noqa: F405
             CONF_CURRENT_STEP_A,  # noqa: F405
             CONF_RAMP_UP_STEP_A,  # noqa: F405
@@ -245,6 +246,7 @@ def _limits_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_MAX_CURRENT_A, default=defaults[CONF_MAX_CURRENT_A]): _number(1, 80, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_MAX_CHARGER_POWER_W, default=defaults[CONF_MAX_CHARGER_POWER_W]): _number(500, 22000, 100, "W"),  # noqa: E501,F405
             vol.Required(CONF_BATTERY_MAX_CHARGE_POWER_W, default=defaults[CONF_BATTERY_MAX_CHARGE_POWER_W]): _number(0, 20000, 100, "W"),  # noqa: E501,F405
+            vol.Required(CONF_BATTERY_DISCHARGE_CONTROL_CEILING_W, default=defaults[CONF_BATTERY_DISCHARGE_CONTROL_CEILING_W]): _number(0, 20000, 100, "W"),  # noqa: E501,F405
             vol.Required(CONF_GRID_TOLERANCE_W, default=defaults[CONF_GRID_TOLERANCE_W]): _number(0, 2000, 10, "W"),  # noqa: E501,F405
             vol.Required(CONF_CURRENT_STEP_A, default=defaults[CONF_CURRENT_STEP_A]): _number(0.1, 5, 0.1, "A"),  # noqa: E501,F405
             vol.Required(CONF_RAMP_UP_STEP_A, default=defaults[CONF_RAMP_UP_STEP_A]): _number(0.1, 10, 0.1, "A"),  # noqa: E501,F405
@@ -279,6 +281,7 @@ def _control_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_MIN_COMMAND_INTERVAL_S, default=defaults[CONF_MIN_COMMAND_INTERVAL_S]): _number(5, 300, 5, "s"),  # noqa: E501,F405
             vol.Required(CONF_INCREASE_DWELL_S, default=defaults[CONF_INCREASE_DWELL_S]): _number(0, 900, 5, "s"),  # noqa: E501,F405
             vol.Required(CONF_DECREASE_DWELL_S, default=defaults[CONF_DECREASE_DWELL_S]): _number(0, 300, 5, "s"),  # noqa: E501,F405
+            vol.Required(CONF_BATTERY_RESPONSE_GRACE_S, default=defaults[CONF_BATTERY_RESPONSE_GRACE_S]): _number(0, 300, 5, "s"),  # noqa: E501,F405
             vol.Required(CONF_STOP_WHEN_DISABLED, default=defaults[CONF_STOP_WHEN_DISABLED]): _boolean(),  # noqa: F405
             vol.Required(CONF_FAIL_SAFE_STOP, default=defaults[CONF_FAIL_SAFE_STOP]): _boolean(),  # noqa: F405
             vol.Required(CONF_INITIAL_OBSERVE_ONLY, default=defaults[CONF_INITIAL_OBSERVE_ONLY]): _boolean(),  # noqa: F405

@@ -1,8 +1,10 @@
-# v0.3.2 requirement traceability
+# v0.3.3 requirement traceability
 
 | Requirement | Implementation / gate |
 |---|---|
 | Preserve post-peak, floor pacing, deadline recovery and maximum allowance policy | Existing deterministic planner and A/B/C ten-minute simulations retained |
+| Avoid transient post-peak start/stop cycling | Above-minimum requests step down to 6 A first; minimum-current hold requires measured headroom sufficient to cover excess import and expires after a configurable grace period |
+| Stop promptly when the battery cannot respond | Immediate stop at/above the configurable 4.5 kW discharge ceiling, when residual headroom is insufficient, or when battery-power telemetry is invalid |
 | Peak solar-overflow precedence | Genuine no-grid solar branch evaluated before peak stop; dedicated regression test |
 | Observational Available Solar vs Calculated Power | Separate observed power-balance excess and policy EV request fields/tests |
 | Accurate connection boundary | Rising edge establishes baseline and skips retrospective integration |

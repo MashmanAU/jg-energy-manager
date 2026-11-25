@@ -37,6 +37,7 @@ Do not retain an automation that writes Calculated Current after live control is
 | Force Charge current | 32 A |
 | Maximum charger power | 7,360 W |
 | Battery maximum charge rate | 5,000 W |
+| Battery discharge control ceiling | 4,500 W |
 | Grid tolerance | 100 W |
 | Charger current step | 0.1 A |
 | Slow-increase step | 1 A |
@@ -55,6 +56,7 @@ Do not retain an automation that writes Calculated Current after live control is
 | Minimum command interval | 30 s |
 | Increase dwell | 120 s |
 | Decrease dwell | 0 s |
+| Battery response grace | 30 s |
 | Stop when disabled | Yes |
 | Fail-safe stop | Yes |
 | Initial Observe Only | Yes |

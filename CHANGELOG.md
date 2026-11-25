@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.3 - 2026-11-25
+
+- Kept rapid post-peak load tuning and immediate fine-grained current reductions while separating minimum-current stopping from ordinary current adjustment.
+- Changed below-minimum feedback to reduce an active charger to 6 A before considering a complete stop.
+- Added a configurable 4.5 kW battery discharge control ceiling and a 30-second battery response grace period.
+- At 6 A and above the overnight SOC floor, hold charging only when measured battery headroom can plausibly absorb all grid import above tolerance; stop immediately when the battery is at/above the ceiling or residual headroom is insufficient.
+- Disabled the grace path when battery-power telemetry is unavailable or invalid, and exposed hold status, available headroom, uncovered import and timer start in diagnostics.
+- Added deterministic regressions for step-down-before-stop, credible-headroom hold, grace expiry, near-ceiling stop, insufficient-headroom stop and invalid-telemetry stop.
+
 ## 0.3.2 - 2026-11-23
 
 - Fixed the v0.3.1 numeric-input regression that displaced the float-conversion block and caused every valid numeric Home Assistant state, including zero, to resolve as null after restart/reload.

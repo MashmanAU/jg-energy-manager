@@ -63,6 +63,10 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
             "policy_solar_power_w": round(decision.policy_solar_power_w),
             "projected_completion": decision.projected_completion,
             "deadline": decision.deadline,
+            "battery_response_hold": decision.battery_response_hold,
+            "battery_discharge_headroom_w": round(decision.battery_discharge_headroom_w),
+            "battery_uncovered_import_w": round(decision.battery_uncovered_import_w),
+            "battery_response_since": coordinator.data["battery_response_since"],
         },
         "inputs": {
             "input_health": coordinator.data["inputs_valid"],
