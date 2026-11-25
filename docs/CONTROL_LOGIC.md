@@ -1,4 +1,4 @@
-# Control logic - v0.3.3
+# Control logic - v0.3.4
 
 ## Safety and session boundaries
 
@@ -8,7 +8,9 @@ Every setup, reload, scheduled cycle and event-driven refresh reads a complete s
 
 ## Buffered deadline
 
-The operational deadline is the ready-by time minus the configurable completion buffer. The planner continuously checks maximum physical deliverability. It reports `impossible_target` when maximum current cannot deliver the remaining allowance by that deadline. It reports `deadline_recovery` when grid-supported charging must begin now to retain feasibility.
+The operational deadline is the ready-by time minus the configurable completion buffer. The planner continuously checks maximum physical deliverability. It enters `impossible_target` only when the calculated energy deficit exceeds the configurable entry margin (0.20 kWh by default). Once entered, that state remains latched until the target has the configured positive feasibility headroom (0.25 kWh by default). This separates a meaningful loss of feasibility from recorder timing and energy-estimate noise around the exact boundary.
+
+After deadline control reaches maximum output, 32 A remains sticky. Release is considered only when the calculated deadline requirement is at least the configured current margin below maximum (2 A by default), and it must remain there for the configured dwell (60 seconds by default). This maximum-boundary stabilisation does not apply to ordinary battery/grid feedback, whose small current reductions remain immediate.
 
 Genuine no-grid solar overflow takes precedence during the peak window. Otherwise charging remains stopped when the remaining allowance still fits after peak. Peak import is requested only when deferring until peak end would make the buffered deadline infeasible.
 
@@ -47,6 +49,6 @@ A start acknowledges only after physical status/power confirms charging. A stop 
 - **Solar Only** - genuine no-grid, no-battery-discharge charging only; deadline recovery is disabled.
 - **Off** - stop charging.
 
-## Explicitly excluded from v0.3.3
+## Explicitly excluded from v0.3.4
 
 There is no site import-limit controller, AlphaESS write control or automatic second-charger actuation. Charger 2 remains parked with diagnostic mappings only.

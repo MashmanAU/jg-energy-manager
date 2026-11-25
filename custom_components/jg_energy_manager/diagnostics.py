@@ -67,6 +67,18 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
             "battery_discharge_headroom_w": round(decision.battery_discharge_headroom_w),
             "battery_uncovered_import_w": round(decision.battery_uncovered_import_w),
             "battery_response_since": coordinator.data["battery_response_since"],
+            "deadline_feasibility_margin_kwh": round(
+                decision.deadline_feasibility_margin_kwh, 3
+            ),
+            "deadline_impossible_latched": decision.deadline_impossible_latched,
+            "deadline_max_output_hold": decision.deadline_max_output_hold,
+            "deadline_max_release_candidate": decision.deadline_max_release_candidate,
+            "deadline_max_release_elapsed_s": round(
+                decision.deadline_max_release_elapsed_s
+            ),
+            "deadline_max_release_since": coordinator.data[
+                "deadline_max_release_since"
+            ],
         },
         "inputs": {
             "input_health": coordinator.data["inputs_valid"],

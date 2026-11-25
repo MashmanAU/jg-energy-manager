@@ -165,6 +165,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_increase_at: datetime | None = None
         self._last_decrease_at: datetime | None = None
         self._battery_response_since: datetime | None = None
+        self._deadline_max_release_since: datetime | None = None
         self._last_input_issue_signature: tuple[tuple[str, ...], tuple[str, ...]] | None = None
 
     async def async_load_runtime(self) -> None:
@@ -226,6 +227,16 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 s[CONF_BATTERY_DISCHARGE_CONTROL_CEILING_W]
             ),
             battery_response_grace_s=float(s[CONF_BATTERY_RESPONSE_GRACE_S]),
+            deadline_impossible_enter_margin_kwh=float(
+                s[CONF_DEADLINE_IMPOSSIBLE_ENTER_MARGIN_KWH]
+            ),
+            deadline_impossible_exit_margin_kwh=float(
+                s[CONF_DEADLINE_IMPOSSIBLE_EXIT_MARGIN_KWH]
+            ),
+            deadline_max_hold_current_margin_a=float(
+                s[CONF_DEADLINE_MAX_HOLD_CURRENT_MARGIN_A]
+            ),
+            deadline_max_hold_s=float(s[CONF_DEADLINE_MAX_HOLD_S]),
             grid_tolerance_w=float(s[CONF_GRID_TOLERANCE_W]),
             current_step_a=float(s[CONF_CURRENT_STEP_A]),
             ramp_up_step_a=float(s[CONF_RAMP_UP_STEP_A]),
@@ -349,6 +360,26 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self._battery_response_since is not None
             else 0.0
         )
+        planner_settings = self.planner_settings()
+        previous_decision = self._last_decision
+        deadline_max_output_active = bool(
+            previous_decision
+            and previous_decision.should_enable
+            and previous_decision.state
+            in {
+                ControllerState.DEADLINE_RECOVERY,
+                ControllerState.IMPOSSIBLE_TARGET,
+                ControllerState.OVERNIGHT_FLOOR,
+            }
+            and previous_decision.requested_current_a
+            >= planner_settings.effective_max_current_a
+            - planner_settings.current_step_a / 2.0
+        )
+        deadline_max_release_elapsed_s = (
+            max(0.0, (now - self._deadline_max_release_since).total_seconds())
+            if self._deadline_max_release_since is not None
+            else 0.0
+        )
         decision = calculate_decision(
             PlannerInputs(
                 now=now,
@@ -379,14 +410,24 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     snapshot.readings["battery_power"].health == "valid"
                 ),
                 battery_response_elapsed_s=battery_response_elapsed_s,
+                previous_controller_state=(
+                    previous_decision.state if previous_decision is not None else None
+                ),
+                deadline_max_output_active=deadline_max_output_active,
+                deadline_max_release_elapsed_s=deadline_max_release_elapsed_s,
             ),
-            self.planner_settings(),
+            planner_settings,
         )
         if decision.battery_response_hold:
             if self._battery_response_since is None:
                 self._battery_response_since = now
         else:
             self._battery_response_since = None
+        if decision.deadline_max_release_candidate:
+            if self._deadline_max_release_since is None:
+                self._deadline_max_release_since = now
+        else:
+            self._deadline_max_release_since = None
         self._last_decision = decision
         await self._async_apply_decision(
             decision,
@@ -440,6 +481,7 @@ class JGEnergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "actuator": self.actuator.as_dict(),
             "secondary": secondary,
             "battery_response_since": self._battery_response_since,
+            "deadline_max_release_since": self._deadline_max_release_since,
         }
 
     async def _async_apply_decision(

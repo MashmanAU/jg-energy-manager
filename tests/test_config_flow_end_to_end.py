@@ -471,6 +471,10 @@ def test_first_time_setup_renders_and_advances_through_every_form():
     assert result["data"]["increase_dwell_s"] == 120
     assert result["data"]["decrease_dwell_s"] == 0
     assert result["data"]["battery_response_grace_s"] == 30
+    assert result["data"]["deadline_impossible_enter_margin_kwh"] == 0.20
+    assert result["data"]["deadline_impossible_exit_margin_kwh"] == 0.25
+    assert result["data"]["deadline_max_hold_current_margin_a"] == 2.0
+    assert result["data"]["deadline_max_hold_s"] == 60
     assert result["data"]["secondary_switch_entity"] is None
 
 

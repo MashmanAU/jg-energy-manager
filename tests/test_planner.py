@@ -212,6 +212,164 @@ def test_impossible_target_is_explicit_and_requests_maximum():
     assert "impossible" in result.reason.lower()
 
 
+def test_impossible_target_requires_a_meaningful_feasibility_deficit():
+    marginal = calculate_decision(
+        inputs(
+            "2026-11-22T05:00:00+11:00",
+            battery_soc=20,
+            charger_enabled=True,
+            charger_power_w=6200,
+            charger_current_a=27,
+            grid_import_w=1500,
+        ),
+        PlannerSettings(target_energy_kwh=3.40),
+    )
+    assert marginal.state is not ControllerState.IMPOSSIBLE_TARGET
+
+    meaningful = calculate_decision(
+        inputs("2026-11-22T05:00:00+11:00", battery_soc=20),
+        PlannerSettings(target_energy_kwh=3.60),
+    )
+    assert meaningful.state is ControllerState.IMPOSSIBLE_TARGET
+    assert meaningful.deadline_impossible_latched
+
+
+def test_impossible_target_remains_latched_until_comfortable_headroom_returns():
+    still_latched = calculate_decision(
+        inputs(
+            "2026-11-22T05:00:00+11:00",
+            battery_soc=20,
+            previous_controller_state=ControllerState.IMPOSSIBLE_TARGET,
+        ),
+        PlannerSettings(target_energy_kwh=3.20),
+    )
+    assert still_latched.state is ControllerState.IMPOSSIBLE_TARGET
+
+    released = calculate_decision(
+        inputs(
+            "2026-11-22T05:00:00+11:00",
+            battery_soc=20,
+            charger_enabled=True,
+            charger_power_w=7360,
+            charger_current_a=32,
+            grid_import_w=2000,
+            previous_controller_state=ControllerState.IMPOSSIBLE_TARGET,
+            deadline_max_output_active=True,
+        ),
+        PlannerSettings(target_energy_kwh=3.00),
+    )
+    assert released.state is ControllerState.DEADLINE_RECOVERY
+    assert released.requested_current_a == 32
+    assert released.deadline_max_output_hold
+    assert released.deadline_max_release_candidate
+
+
+def test_deadline_maximum_holds_until_lower_requirement_is_material_and_sustained():
+    settings = PlannerSettings(target_energy_kwh=3.303375)
+    common = dict(
+        battery_soc=20,
+        charger_enabled=True,
+        charger_power_w=7360,
+        charger_current_a=32,
+        grid_import_w=2000,
+        previous_controller_state=ControllerState.DEADLINE_RECOVERY,
+        deadline_max_output_active=True,
+    )
+    before_dwell = calculate_decision(
+        inputs(
+            "2026-11-22T05:00:00+11:00",
+            deadline_max_release_elapsed_s=59,
+            **common,
+        ),
+        settings,
+    )
+    assert before_dwell.requested_current_a == 32
+    assert before_dwell.deadline_max_output_hold
+    assert before_dwell.deadline_max_release_candidate
+
+    after_dwell = calculate_decision(
+        inputs(
+            "2026-11-22T05:00:00+11:00",
+            deadline_max_release_elapsed_s=60,
+            **common,
+        ),
+        settings,
+    )
+    assert after_dwell.state is ControllerState.DEADLINE_RECOVERY
+    assert after_dwell.requested_current_a == 27
+    assert not after_dwell.deadline_max_output_hold
+
+
+def test_deadline_maximum_does_not_release_for_near_maximum_requirement():
+    result = calculate_decision(
+        inputs(
+            "2026-11-22T05:00:00+11:00",
+            battery_soc=20,
+            charger_enabled=True,
+            charger_power_w=7360,
+            charger_current_a=32,
+            grid_import_w=2000,
+            previous_controller_state=ControllerState.DEADLINE_RECOVERY,
+            deadline_max_output_active=True,
+            deadline_max_release_elapsed_s=300,
+        ),
+        PlannerSettings(target_energy_kwh=3.310275),
+    )
+    assert result.requested_current_a == 32
+    assert result.deadline_max_output_hold
+    assert not result.deadline_max_release_candidate
+
+
+def test_deadline_maximum_release_margin_includes_exact_threshold():
+    result = calculate_decision(
+        inputs(
+            "2026-11-22T05:00:00+11:00",
+            battery_soc=20,
+            charger_enabled=True,
+            charger_power_w=7360,
+            charger_current_a=32,
+            grid_import_w=2000,
+            previous_controller_state=ControllerState.DEADLINE_RECOVERY,
+            deadline_max_output_active=True,
+            deadline_max_release_elapsed_s=59,
+        ),
+        PlannerSettings(target_energy_kwh=3.30855),
+    )
+    assert result.requested_current_a == 32
+    assert result.deadline_max_release_candidate
+
+
+def test_history_2_boundary_pattern_no_longer_flips_to_impossible_target():
+    """Regression for the supplied 10-second deadline-boundary oscillation."""
+    samples = (
+        ("2026-11-26T04:19:12.922+11:00", 7.834),
+        ("2026-11-26T04:19:23.895+11:00", 7.796),
+        ("2026-11-26T04:19:33.898+11:00", 7.779),
+        ("2026-11-26T04:19:44.875+11:00", 7.779),
+        ("2026-11-26T04:19:54.879+11:00", 7.757),
+        ("2026-11-26T04:20:04.884+11:00", 7.739),
+    )
+    previous = ControllerState.DEADLINE_RECOVERY
+    for at, remaining in samples:
+        result = calculate_decision(
+            inputs(
+                at,
+                battery_soc=20,
+                charger_enabled=True,
+                charger_power_w=7360,
+                charger_current_a=32,
+                grid_import_w=2000,
+                session_energy_kwh=30 - remaining,
+                previous_controller_state=previous,
+                deadline_max_output_active=True,
+            ),
+            PlannerSettings(),
+        )
+        assert result.state is not ControllerState.IMPOSSIBLE_TARGET
+        assert result.requested_current_a == 32
+        previous = result.state
+
+
 def test_peak_import_is_avoided_when_deadline_remains_feasible():
     result = calculate_decision(
         inputs("2026-11-21T17:00:00+11:00", battery_soc=60),

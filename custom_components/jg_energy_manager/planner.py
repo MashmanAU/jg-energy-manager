@@ -51,6 +51,10 @@ class PlannerSettings:
     battery_max_charge_power_w: float = 5000.0
     battery_discharge_control_ceiling_w: float = 4500.0
     battery_response_grace_s: float = 30.0
+    deadline_impossible_enter_margin_kwh: float = 0.20
+    deadline_impossible_exit_margin_kwh: float = 0.25
+    deadline_max_hold_current_margin_a: float = 2.0
+    deadline_max_hold_s: float = 60.0
     grid_tolerance_w: float = 100.0
     current_step_a: float = 0.1
     ramp_up_step_a: float = 1.0
@@ -106,6 +110,9 @@ class PlannerInputs:
     decrease_allowed: bool = True
     battery_power_valid: bool = True
     battery_response_elapsed_s: float = 0.0
+    previous_controller_state: ControllerState | None = None
+    deadline_max_output_active: bool = False
+    deadline_max_release_elapsed_s: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +133,11 @@ class Decision:
     battery_response_hold: bool = False
     battery_discharge_headroom_w: float = 0.0
     battery_uncovered_import_w: float = 0.0
+    deadline_feasibility_margin_kwh: float = 0.0
+    deadline_impossible_latched: bool = False
+    deadline_max_output_hold: bool = False
+    deadline_max_release_candidate: bool = False
+    deadline_max_release_elapsed_s: float = 0.0
 
 
 def _in_window(value: time, start: time, end: time) -> bool:
@@ -219,6 +231,11 @@ def _decision(
     battery_response_hold: bool = False,
     battery_discharge_headroom_w: float = 0.0,
     battery_uncovered_import_w: float = 0.0,
+    deadline_feasibility_margin_kwh: float = 0.0,
+    deadline_impossible_latched: bool = False,
+    deadline_max_output_hold: bool = False,
+    deadline_max_release_candidate: bool = False,
+    deadline_max_release_elapsed_s: float = 0.0,
     now: datetime,
 ) -> Decision:
     current_a = min(settings.effective_max_current_a, max(0.0, current_a))
@@ -240,6 +257,11 @@ def _decision(
         battery_response_hold=battery_response_hold,
         battery_discharge_headroom_w=max(0.0, battery_discharge_headroom_w),
         battery_uncovered_import_w=max(0.0, battery_uncovered_import_w),
+        deadline_feasibility_margin_kwh=deadline_feasibility_margin_kwh,
+        deadline_impossible_latched=deadline_impossible_latched,
+        deadline_max_output_hold=deadline_max_output_hold,
+        deadline_max_release_candidate=deadline_max_release_candidate,
+        deadline_max_release_elapsed_s=max(0.0, deadline_max_release_elapsed_s),
     )
 
 
@@ -248,6 +270,34 @@ def _requested_current_for_power(power_w: float, settings: PlannerSettings) -> f
         return 0.0
     requested = _round_up(power_w / settings.watts_per_amp, settings.current_step_a)
     return min(settings.effective_max_current_a, max(settings.min_current_a, requested))
+
+
+def _deadline_current_with_max_hold(
+    required_w: float,
+    inputs: PlannerInputs,
+    settings: PlannerSettings,
+) -> tuple[float, bool, bool]:
+    """Hold maximum output until a materially lower requirement is sustained.
+
+    This stateful boundary applies only after deadline control was already at
+    maximum output. Ordinary feedback current tuning remains unaffected.
+    """
+    requested = _requested_current_for_power(required_w, settings)
+    if not inputs.deadline_max_output_active:
+        return requested, False, False
+
+    release_below_a = max(
+        settings.min_current_a,
+        settings.effective_max_current_a - settings.deadline_max_hold_current_margin_a,
+    )
+    release_candidate = requested <= release_below_a
+    release_sustained = (
+        release_candidate
+        and inputs.deadline_max_release_elapsed_s >= settings.deadline_max_hold_s
+    )
+    if release_sustained:
+        return requested, False, True
+    return settings.effective_max_current_a, True, release_candidate
 
 
 def _ramped_feedback_current(
@@ -382,6 +432,10 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
         or settings.battery_max_charge_power_w < 0
         or settings.battery_discharge_control_ceiling_w < 0
         or settings.battery_response_grace_s < 0
+        or settings.deadline_impossible_enter_margin_kwh < 0
+        or settings.deadline_impossible_exit_margin_kwh < 0
+        or settings.deadline_max_hold_current_margin_a < 0
+        or settings.deadline_max_hold_s < 0
         or settings.grid_tolerance_w < 0
         or settings.supply_voltage <= 0
         or settings.phases <= 0
@@ -474,10 +528,20 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
         * seconds_remaining
         / 3_600_000.0
     )
-    if remaining > max_deliverable_kwh + 0.001:
+    feasibility_margin_kwh = max_deliverable_kwh - remaining
+    feasibility_deficit_kwh = max(0.0, -feasibility_margin_kwh)
+    was_impossible = inputs.previous_controller_state is ControllerState.IMPOSSIBLE_TARGET
+    impossible_latched = (
+        was_impossible
+        and feasibility_margin_kwh < settings.deadline_impossible_exit_margin_kwh
+    ) or (
+        not was_impossible
+        and feasibility_deficit_kwh > settings.deadline_impossible_enter_margin_kwh
+    )
+    if impossible_latched:
         return _decision(
             ControllerState.IMPOSSIBLE_TARGET,
-            "The remaining maximum target is impossible by the buffered deadline; maximum current is requested.",
+            "The target is meaningfully impossible by the buffered deadline; maximum current remains requested until comfortable feasibility headroom is restored.",
             True,
             settings.effective_max_current_a,
             remaining,
@@ -485,6 +549,8 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             required_w=settings.max_power_w,
             available_solar_w=observed_solar_w,
             deadline=deadline,
+            deadline_feasibility_margin_kwh=feasibility_margin_kwh,
+            deadline_impossible_latched=True,
             now=inputs.now,
         )
 
@@ -540,31 +606,72 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
             settings.max_power_w,
             peak_deficit_kwh * 3_600_000.0 / (peak_seconds * settings.charging_efficiency),
         )
+        requested, max_hold, release_candidate = _deadline_current_with_max_hold(
+            required_w, inputs, settings
+        )
         return _decision(
             ControllerState.DEADLINE_RECOVERY,
-            "Peak charging is physically required to preserve buffered-deadline feasibility.",
+            (
+                "Maximum output is held while peak deadline recovery remains near the feasibility boundary."
+                if max_hold
+                else "Peak charging is physically required to preserve buffered-deadline feasibility."
+            ),
             True,
-            _requested_current_for_power(required_w, settings),
+            requested,
             remaining,
             settings,
             required_w=required_w,
             available_solar_w=observed_solar_w,
             deadline=deadline,
+            deadline_feasibility_margin_kwh=feasibility_margin_kwh,
+            deadline_max_output_hold=max_hold,
+            deadline_max_release_candidate=release_candidate,
+            deadline_max_release_elapsed_s=inputs.deadline_max_release_elapsed_s,
             now=inputs.now,
         )
 
     recovery_w = _non_peak_recovery_power(inputs.now, deadline, remaining, settings)
     in_overnight = _in_window(local_time, settings.overnight_start, settings.ready_by)
     if in_overnight:
+        # A maximum deadline request is sticky across the feasibility boundary.
+        # Do not hand control straight back to fast battery feedback until the
+        # underlying deadline requirement has remained materially lower for the
+        # configured dwell.
+        requested, max_hold, release_candidate = _deadline_current_with_max_hold(
+            recovery_w, inputs, settings
+        )
+        if max_hold:
+            return _decision(
+                ControllerState.DEADLINE_RECOVERY,
+                "Maximum output is held while the deadline requirement proves it is materially below the feasibility boundary.",
+                True,
+                requested,
+                remaining,
+                settings,
+                required_w=recovery_w,
+                available_solar_w=observed_solar_w,
+                deadline=deadline,
+                deadline_feasibility_margin_kwh=feasibility_margin_kwh,
+                deadline_max_output_hold=True,
+                deadline_max_release_candidate=release_candidate,
+                deadline_max_release_elapsed_s=inputs.deadline_max_release_elapsed_s,
+                now=inputs.now,
+            )
         if inputs.battery_soc <= settings.overnight_battery_floor + 0.05:
             hours_remaining = max(seconds_remaining / 3600.0, 1 / 3600)
             required_w = remaining * 1000.0 / (
                 hours_remaining * settings.charging_efficiency
             )
-            requested = _requested_current_for_power(required_w, settings)
+            requested, max_hold, release_candidate = _deadline_current_with_max_hold(
+                required_w, inputs, settings
+            )
             return _decision(
                 ControllerState.OVERNIGHT_FLOOR,
-                "Battery floor reached; the remaining allowance is continuously spread to the buffered deadline.",
+                (
+                    "Battery floor reached; maximum output is held until the deadline requirement remains materially lower."
+                    if max_hold
+                    else "Battery floor reached; the remaining allowance is continuously spread to the buffered deadline."
+                ),
                 True,
                 requested,
                 remaining,
@@ -572,6 +679,10 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
                 required_w=required_w,
                 available_solar_w=observed_solar_w,
                 deadline=deadline,
+                deadline_feasibility_margin_kwh=feasibility_margin_kwh,
+                deadline_max_output_hold=max_hold,
+                deadline_max_release_candidate=release_candidate,
+                deadline_max_release_elapsed_s=inputs.deadline_max_release_elapsed_s,
                 now=inputs.now,
             )
 
@@ -587,16 +698,27 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
         stable_current = _ramped_feedback_current(stable_power, inputs, settings)
         recovery_current = _requested_current_for_power(recovery_w, settings)
         if recovery_current > stable_current:
+            requested, max_hold, release_candidate = _deadline_current_with_max_hold(
+                recovery_w, inputs, settings
+            )
             return _decision(
                 ControllerState.DEADLINE_RECOVERY,
-                "Grid support is required now to preserve buffered-deadline feasibility.",
+                (
+                    "Maximum output is held while deadline recovery remains near the feasibility boundary."
+                    if max_hold
+                    else "Grid support is required now to preserve buffered-deadline feasibility."
+                ),
                 True,
-                recovery_current,
+                requested,
                 remaining,
                 settings,
                 required_w=recovery_w,
                 available_solar_w=observed_solar_w,
                 deadline=deadline,
+                deadline_feasibility_margin_kwh=feasibility_margin_kwh,
+                deadline_max_output_hold=max_hold,
+                deadline_max_release_candidate=release_candidate,
+                deadline_max_release_elapsed_s=inputs.deadline_max_release_elapsed_s,
                 now=inputs.now,
             )
         if stable_current < settings.min_current_a:
@@ -673,17 +795,28 @@ def calculate_decision(inputs: PlannerInputs, settings: PlannerSettings) -> Deci
 
     recovery_current = _requested_current_for_power(recovery_w, settings)
     if recovery_current > solar_current:
+        requested, max_hold, release_candidate = _deadline_current_with_max_hold(
+            recovery_w, inputs, settings
+        )
         return _decision(
             ControllerState.DEADLINE_RECOVERY,
-            "Charging now is required to preserve non-peak buffered-deadline feasibility.",
+            (
+                "Maximum output is held while non-peak deadline recovery remains near the feasibility boundary."
+                if max_hold
+                else "Charging now is required to preserve non-peak buffered-deadline feasibility."
+            ),
             True,
-            recovery_current,
+            requested,
             remaining,
             settings,
             required_w=recovery_w,
             available_solar_w=observed_solar_w,
             policy_solar_w=policy_solar_w,
             deadline=deadline,
+            deadline_feasibility_margin_kwh=feasibility_margin_kwh,
+            deadline_max_output_hold=max_hold,
+            deadline_max_release_candidate=release_candidate,
+            deadline_max_release_elapsed_s=inputs.deadline_max_release_elapsed_s,
             now=inputs.now,
         )
     if solar_current < settings.min_current_a:

@@ -57,6 +57,10 @@ Do not retain an automation that writes Calculated Current after live control is
 | Increase dwell | 120 s |
 | Decrease dwell | 0 s |
 | Battery response grace | 30 s |
+| Impossible-target entry deficit | 0.20 kWh |
+| Impossible-target exit headroom | 0.25 kWh |
+| Maximum-output release margin | 2.0 A |
+| Maximum-output release dwell | 60 s |
 | Stop when disabled | Yes |
 | Fail-safe stop | Yes |
 | Initial Observe Only | Yes |

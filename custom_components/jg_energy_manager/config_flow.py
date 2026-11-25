@@ -282,6 +282,10 @@ def _control_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(CONF_INCREASE_DWELL_S, default=defaults[CONF_INCREASE_DWELL_S]): _number(0, 900, 5, "s"),  # noqa: E501,F405
             vol.Required(CONF_DECREASE_DWELL_S, default=defaults[CONF_DECREASE_DWELL_S]): _number(0, 300, 5, "s"),  # noqa: E501,F405
             vol.Required(CONF_BATTERY_RESPONSE_GRACE_S, default=defaults[CONF_BATTERY_RESPONSE_GRACE_S]): _number(0, 300, 5, "s"),  # noqa: E501,F405
+            vol.Required(CONF_DEADLINE_IMPOSSIBLE_ENTER_MARGIN_KWH, default=defaults[CONF_DEADLINE_IMPOSSIBLE_ENTER_MARGIN_KWH]): _number(0, 5, 0.05, "kWh"),  # noqa: E501,F405
+            vol.Required(CONF_DEADLINE_IMPOSSIBLE_EXIT_MARGIN_KWH, default=defaults[CONF_DEADLINE_IMPOSSIBLE_EXIT_MARGIN_KWH]): _number(0, 5, 0.05, "kWh"),  # noqa: E501,F405
+            vol.Required(CONF_DEADLINE_MAX_HOLD_CURRENT_MARGIN_A, default=defaults[CONF_DEADLINE_MAX_HOLD_CURRENT_MARGIN_A]): _number(0, 20, 0.1, "A"),  # noqa: E501,F405
+            vol.Required(CONF_DEADLINE_MAX_HOLD_S, default=defaults[CONF_DEADLINE_MAX_HOLD_S]): _number(0, 900, 5, "s"),  # noqa: E501,F405
             vol.Required(CONF_STOP_WHEN_DISABLED, default=defaults[CONF_STOP_WHEN_DISABLED]): _boolean(),  # noqa: F405
             vol.Required(CONF_FAIL_SAFE_STOP, default=defaults[CONF_FAIL_SAFE_STOP]): _boolean(),  # noqa: F405
             vol.Required(CONF_INITIAL_OBSERVE_ONLY, default=defaults[CONF_INITIAL_OBSERVE_ONLY]): _boolean(),  # noqa: F405

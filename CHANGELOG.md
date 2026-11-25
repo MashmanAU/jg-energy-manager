@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.4 - 2026-11-26
+
+- Added deadline-feasibility hysteresis: `impossible_target` now requires a configurable 0.20 kWh deficit and remains latched until a configurable 0.25 kWh achievable-energy margin is restored.
+- Made maximum deadline output sticky: after reaching maximum, the controller releases only when calculated current remains at least 2 A below maximum for 60 seconds.
+- Kept the new dwell isolated from ordinary battery/grid feedback so fast fine-grained current reductions and all v0.3.3 battery-headroom-aware 6 A stop logic remain unchanged.
+- Added diagnostics for feasibility margin, impossible-target latch, maximum-output hold and release dwell.
+- Added regression coverage distilled from the supplied `history (2).csv` 10-second `deadline_recovery` / `impossible_target` oscillation.
+
 ## 0.3.3 - 2026-11-25
 
 - Kept rapid post-peak load tuning and immediate fine-grained current reductions while separating minimum-current stopping from ordinary current adjustment.

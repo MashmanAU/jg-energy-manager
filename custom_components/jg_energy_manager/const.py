@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "jg_energy_manager"
 NAME: Final = "JG Energy Manager"
-VERSION: Final = "0.3.3"
+VERSION: Final = "0.3.4"
 PLATFORMS: Final = ["binary_sensor", "button", "select", "sensor", "switch"]
 
 CONF_NAME: Final = "name"
@@ -56,6 +56,10 @@ CONF_MIN_COMMAND_INTERVAL_S: Final = "min_command_interval_s"
 CONF_INCREASE_DWELL_S: Final = "increase_dwell_s"
 CONF_DECREASE_DWELL_S: Final = "decrease_dwell_s"
 CONF_BATTERY_RESPONSE_GRACE_S: Final = "battery_response_grace_s"
+CONF_DEADLINE_IMPOSSIBLE_ENTER_MARGIN_KWH: Final = "deadline_impossible_enter_margin_kwh"
+CONF_DEADLINE_IMPOSSIBLE_EXIT_MARGIN_KWH: Final = "deadline_impossible_exit_margin_kwh"
+CONF_DEADLINE_MAX_HOLD_CURRENT_MARGIN_A: Final = "deadline_max_hold_current_margin_a"
+CONF_DEADLINE_MAX_HOLD_S: Final = "deadline_max_hold_s"
 CONF_STOP_WHEN_DISABLED: Final = "stop_when_disabled"
 CONF_FAIL_SAFE_STOP: Final = "fail_safe_stop"
 CONF_INITIAL_OBSERVE_ONLY: Final = "initial_observe_only"
@@ -123,6 +127,10 @@ DEFAULTS: Final = {
     CONF_INCREASE_DWELL_S: 120,
     CONF_DECREASE_DWELL_S: 0,
     CONF_BATTERY_RESPONSE_GRACE_S: 30,
+    CONF_DEADLINE_IMPOSSIBLE_ENTER_MARGIN_KWH: 0.20,
+    CONF_DEADLINE_IMPOSSIBLE_EXIT_MARGIN_KWH: 0.25,
+    CONF_DEADLINE_MAX_HOLD_CURRENT_MARGIN_A: 2.0,
+    CONF_DEADLINE_MAX_HOLD_S: 60,
     CONF_STOP_WHEN_DISABLED: True,
     CONF_FAIL_SAFE_STOP: True,
     CONF_INITIAL_OBSERVE_ONLY: True,

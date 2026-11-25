@@ -214,6 +214,10 @@ def test_built_hacs_archive_completes_real_home_assistant_config_flow(tmp_path):
     assert result["data"]["increase_dwell_s"] == 120
     assert result["data"]["decrease_dwell_s"] == 0
     assert result["data"]["battery_response_grace_s"] == 30
+    assert result["data"]["deadline_impossible_enter_margin_kwh"] == 0.20
+    assert result["data"]["deadline_impossible_exit_margin_kwh"] == 0.25
+    assert result["data"]["deadline_max_hold_current_margin_a"] == 2.0
+    assert result["data"]["deadline_max_hold_s"] == 60
 
     # Instantiate release metadata against the real Home Assistant sensor API.
     sensor_module = __import__(

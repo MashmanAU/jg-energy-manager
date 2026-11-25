@@ -12,7 +12,7 @@
       },
       "energy": {
         "title": "Energy inputs",
-        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.3.3.",
+        "description": "JG Energy Manager only reads the battery entities. It never writes to AlphaESS in v0.3.4.",
         "data": {
           "battery_soc_entity": "Battery state of charge sensor",
           "battery_power_entity": "Battery power sensor (optional)",
@@ -112,18 +112,26 @@
           "initial_observe_only": "Default to Observe Only when no runtime state exists",
           "increase_dwell_s": "Increase dwell",
           "decrease_dwell_s": "Decrease dwell",
-          "battery_response_grace_s": "Battery response grace"
+          "battery_response_grace_s": "Battery response grace",
+          "deadline_impossible_enter_margin_kwh": "Impossible-target entry deficit",
+          "deadline_impossible_exit_margin_kwh": "Impossible-target exit headroom",
+          "deadline_max_hold_current_margin_a": "Maximum-output release margin",
+          "deadline_max_hold_s": "Maximum-output release dwell"
         },
         "data_description": {
           "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted.",
           "increase_dwell_s": "Minimum settling time between current increases.",
           "decrease_dwell_s": "Minimum settling time between current decreases; use 0 for immediate reductions.",
-          "battery_response_grace_s": "Maximum time to hold 6 A when measured battery headroom can plausibly absorb the grid import."
+          "battery_response_grace_s": "Maximum time to hold 6 A when measured battery headroom can plausibly absorb the grid import.",
+          "deadline_impossible_enter_margin_kwh": "Enter impossible target only when the energy deficit exceeds this amount.",
+          "deadline_impossible_exit_margin_kwh": "Once impossible target is active, retain it until at least this much achievable energy headroom is restored.",
+          "deadline_max_hold_current_margin_a": "After deadline control reaches maximum output, consider release only when calculated current is at least this far below maximum.",
+          "deadline_max_hold_s": "Calculated deadline current must remain materially below maximum for this long before releasing a maximum-output hold."
         }
       },
       "secondary": {
         "title": "Parked second charger",
-        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.3.",
+        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.4.",
         "data": {
           "secondary_enabled": "Configure second charger",
           "secondary_name": "Second charger name",
@@ -260,13 +268,21 @@
           "initial_observe_only": "Default to Observe Only when no runtime state exists",
           "increase_dwell_s": "Increase dwell",
           "decrease_dwell_s": "Decrease dwell",
-          "battery_response_grace_s": "Battery response grace"
+          "battery_response_grace_s": "Battery response grace",
+          "deadline_impossible_enter_margin_kwh": "Impossible-target entry deficit",
+          "deadline_impossible_exit_margin_kwh": "Impossible-target exit headroom",
+          "deadline_max_hold_current_margin_a": "Maximum-output release margin",
+          "deadline_max_hold_s": "Maximum-output release dwell"
         },
         "data_description": {
           "initial_observe_only": "Runtime Observe Only state is controlled by the integration switch and persisted.",
           "increase_dwell_s": "Minimum settling time between current increases.",
           "decrease_dwell_s": "Minimum settling time between current decreases; use 0 for immediate reductions.",
-          "battery_response_grace_s": "Maximum time to hold 6 A when measured battery headroom can plausibly absorb the grid import."
+          "battery_response_grace_s": "Maximum time to hold 6 A when measured battery headroom can plausibly absorb the grid import.",
+          "deadline_impossible_enter_margin_kwh": "Enter impossible target only when the energy deficit exceeds this amount.",
+          "deadline_impossible_exit_margin_kwh": "Once impossible target is active, retain it until at least this much achievable energy headroom is restored.",
+          "deadline_max_hold_current_margin_a": "After deadline control reaches maximum output, consider release only when calculated current is at least this far below maximum.",
+          "deadline_max_hold_s": "Calculated deadline current must remain materially below maximum for this long before releasing a maximum-output hold."
         }
       },
       "secondary": {
@@ -281,7 +297,7 @@
         "data_description": {
           "secondary_enabled": "Mappings may be retained for diagnostics; Charger 2 remains parked with no automatic control."
         },
-        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.3."
+        "description": "Charger 2 mappings are stored for future use. No active control logic is included in v0.3.4."
       }
     },
     "error": {

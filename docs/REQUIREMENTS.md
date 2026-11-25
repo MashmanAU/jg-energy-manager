@@ -1,8 +1,11 @@
-# v0.3.3 requirement traceability
+# v0.3.4 requirement traceability
 
 | Requirement | Implementation / gate |
 |---|---|
 | Preserve post-peak, floor pacing, deadline recovery and maximum allowance policy | Existing deterministic planner and A/B/C ten-minute simulations retained |
+| Prevent deadline state boundary chatter | Separate configurable impossible-target entry deficit and exit headroom; regression covers the supplied history (2).csv 10-second boundary pattern |
+| Stabilise 32 A deadline output | Release only after calculated requirement is materially below maximum for a configurable sustained period |
+| Preserve fast ordinary tuning | Maximum-output dwell is restricted to an already-active deadline maximum; existing immediate post-peak decrease regressions retained |
 | Avoid transient post-peak start/stop cycling | Above-minimum requests step down to 6 A first; minimum-current hold requires measured headroom sufficient to cover excess import and expires after a configurable grace period |
 | Stop promptly when the battery cannot respond | Immediate stop at/above the configurable 4.5 kW discharge ceiling, when residual headroom is insufficient, or when battery-power telemetry is invalid |
 | Peak solar-overflow precedence | Genuine no-grid solar branch evaluated before peak stop; dedicated regression test |
